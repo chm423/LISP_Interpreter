@@ -1,0 +1,89 @@
+=== Sprint 1 Tests ===
+--- nil check ---
+PASSED: nilp( () ) => t
+PASSED: nilp(5) => ()
+--- number check ---
+PASSED: numberp(123) => t
+PASSED: numberp(3.14) => t
+PASSED: numberp(x) => ()
+--- symbol check ---
+PASSED: symbolp(x) => t
+PASSED: symbolp("hi") => ()
+--- string check ---
+PASSED: stringp("hello") => t
+PASSED: stringp(42) => ()
+--- list check ---
+PASSED: listp( () ) => t
+PASSED: listp(cons(1, ())) => t
+PASSED: listp(symbol) => ()
+--- bool check ---
+PASSED: sexpToBool(()) => ()
+PASSED: sexpToBool(cons(1, ())) => t
+PASSED: sexpToBool(5) => t
+--- cons cells, car, cdr ---
+PASSED: cons(a,(b)) => (a b)
+PASSED: car((a b)) => a
+PASSED: cdr((a b)) => (b)
+--- dotted pairs ---
+PASSED: cons(x,y) => (x . y)
+FAILED: cdr(a . b) => got (. b), expected b
+--- nested list ---
+PASSED: nested list (a (1 2)) => (a (1 2))
+--- sexp constructor ---
+PASSED: sexp("42") => 42
+PASSED: sexp("3.14") => 3.140000
+PASSED: sexp("hello") => hello
+PASSED: sexp("\"hi\"") => "hi"
+PASSED: sexp("(a b c)") => (a b c)
+PASSED: sexp("(1 (2 3) 4)") => (1 (2 3) 4)
+PASSED: sexp("(a . b)") => (a . b)
+=== Sprint 2 Tests ===
+--- car ---
+PASSED: car((a b)) => a
+PASSED: car((5)) => 5
+PASSED: car( () ) => ()
+--- cdr ---
+PASSED: cdr((a b)) => (b)
+PASSED: cdr((a)) => ()
+PASSED: cdr( () ) => ()
+=== Sprint 3 Tests ===
+--- arithmetic ---
+PASSED: add(2,3) => 5
+PASSED: add(2.5,3) => 5.500000
+PASSED: sub(10,4) => 6
+PASSED: sub(10,2.5) => 7.500000
+PASSED: mul(3,4) => 12
+PASSED: mul(2.5,4) => 10
+PASSED: divide(10,2) => 5
+PASSED: divide(10,4) => 2.500000
+PASSED: divide(10,0) => DivideByZero
+PASSED: mod(10,3) => 1
+PASSED: mod(10,5) => 0
+PASSED: mod(10,0) => DivideByZero
+--- comparison ---
+PASSED: lt(2,3) => t
+PASSED: lt(3,2) => ()
+PASSED: lt(a,b) => NotANumber
+PASSED: lt(2,a) => NotANumber
+PASSED: gt(5,2) => t
+PASSED: gt(2,5) => ()
+PASSED: gt(a,b) => NotANumber
+PASSED: gt(2,b) => NotANumber
+PASSED: lte(2,2) => t
+PASSED: lte(3,2) => ()
+PASSED: lte(a,b) => NotANumber
+PASSED: lte(2,b) => NotANumber
+PASSED: gte(3,2) => t
+PASSED: gte(2,3) => ()
+PASSED: gte(a,b) => NotANumber
+PASSED: gte(2,b) => NotANumber
+--- equality ---
+PASSED: eq(2,2) => t
+FAILED: eq(2,2.5) => got TypeMismatch, expected ()  
+PASSED: eq(a,a) => t
+PASSED: eq(a,b) => ()
+PASSED: eq("hi","hi") => t
+FAILED: eq((1 2 3),(1 2 3)) => got ListEquality, expected t
+--- logical ---
+PASSED: not(nil) => t
+PASSED: not(t) => ()
