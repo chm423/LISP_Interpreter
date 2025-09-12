@@ -49,7 +49,9 @@ typedef struct SExp {
 SExp nil = { .type = SEXP_LIST, .data.cons = { .car = NULL, .cdr = NULL } };
 // global truth object
 SExp truth = {.type = SEXP_ATOM, .data.atom = {.type = ATOM_SYMBOL, .value.symbol_value = "t"}};
-
+// global environment: parallel lists of symbols and vals
+SExp* envSymbols = &nil;
+SExp* envValues = &nil;
 /* create new cons cell with supplied head and tail */
 SExp *cons(SExp* car, SExp* cdr) {
     SExp* cell = malloc(sizeof(SExp)); 
@@ -87,6 +89,19 @@ SExp *cdr(SExp* list) {
         return &nil;
     }
     return list->data.cons.cdr;
+}
+
+// second element in list
+SExp* cadr(SExp* x) {
+    return car(cdr(x));
+}
+// third element
+SExp* caddr(SExp* x) {
+    return car(cdr(cdr(x)));
+}
+// fourth element
+SExp* cadddr(SExp* x) {
+    return car(cdr(cdr(cdr(x))));
 }
 
 /* constructor functions */
@@ -213,6 +228,12 @@ SExp* parseList(char** input) {
 SExp* readSExpHelper(char** input) {
     skipWhitespace(input);
 
+    // handle quote shortcut '
+    if (**input == '\'') {
+        (*input)++; // skip quote
+        SExp* quoted = readSExpHelper(input);
+        return cons(makeSymbol("quote"), cons(quoted, &nil));
+    }
     if (**input == '(') {
         (*input)++;
         return parseList(input);
@@ -465,6 +486,17 @@ SExp* eq(SExp* a, SExp* b){
     if (a->type != b->type) return sexp("TypeMismatch"); // different types
     if (a->type == SEXP_ATOM) {
         // both atoms, check atom type
+
+        // handle numeric equality (long and double)
+        if ((a->data.atom.type == ATOM_LONG || a->data.atom.type == ATOM_DOUBLE) &&
+            (b->data.atom.type == ATOM_LONG || b->data.atom.type == ATOM_DOUBLE)) {
+            double x, y;
+            getNumber(a, &x);
+            getNumber(b, &y);
+            return (x == y) ? &truth : &nil;
+        }
+
+
         if (a->data.atom.type != b->data.atom.type) return sexp("TypeMismatch"); // different atom types
         switch (a->data.atom.type) {
             case ATOM_LONG:
@@ -485,6 +517,112 @@ SExp* eq(SExp* a, SExp* b){
 // logical not: takes boolean atom and returns opposite
 SExp* notf(SExp* a){
     return (a == &nil) ? &truth : &nil;
+}
+
+/* Sprint 5 functions */
+
+// lookup: find value from symbol in environment
+SExp* lookup(SExp* symbol) {
+    SExp* syms = envSymbols; // traverse symbols
+    SExp* vals = envValues; // traverse values
+
+    while (syms != &nil && vals != &nil) {
+        SExp* headSym = car(syms);
+        SExp* headVal = car(vals);
+
+        if (eq(symbol, headSym) == &truth) {
+            return headVal; // found
+        }
+        syms = cdr(syms);
+        vals = cdr(vals);
+    }
+    return symbol;
+}
+
+// set: add symbol-value pair to environment, will overwrite existing through recency in environment
+SExp* set(SExp* symbol, SExp* value) {
+    envSymbols = cons(symbol, envSymbols);
+    envValues = cons(value, envValues);
+    return value; // return stored value
+}
+
+SExp* eval (SExp* sexp) {
+    if (nilp(sexp) == &truth) return &nil; // nil returns nil
+
+    // atoms
+    if (sexp->type == SEXP_ATOM) {
+        switch (sexp->data.atom.type) {
+            case ATOM_LONG:
+            case ATOM_DOUBLE:
+            case ATOM_STRING:
+                return sexp; // self-evaluating
+            case ATOM_SYMBOL:
+                return lookup(sexp); // lookup in environment
+        }
+    }
+
+    // lists
+    if (sexp->type == SEXP_LIST) {
+        SExp* func = car(sexp);
+        SExp* args = cdr(sexp);
+
+        if (func->type != SEXP_ATOM || func->data.atom.type != ATOM_SYMBOL) {
+            return sexp; // not a function, return as is
+        }
+
+        // check if func is symbol
+        if (func->type != SEXP_ATOM || func->data.atom.type != ATOM_SYMBOL) {
+            return makeSymbol("InvalidFunction");
+        }
+
+        char* fname = func->data.atom.value.symbol_value;
+
+        // handle special forms
+        if (strcmp(fname, "quote") == 0) {
+            return car(args); // return quoted expression   
+        }
+        if (strcmp(fname, "set") == 0) {
+            SExp* var = car(args);
+            SExp* val = eval(cadr(args));
+            return set(var, val);
+        }
+
+        // handle built-in functions
+        if (strcmp(fname, "add") == 0) {
+            return add(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "sub") == 0) {
+            return sub(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "mul") == 0) {
+            return mul(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "div") == 0) {
+            return divide(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "mod") == 0) {
+            return mod(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "lt") == 0) {
+            return lt(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "gt") == 0) {
+            return gt(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "lte") == 0) {
+            return lte(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "gte") == 0) {
+            return gte(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "eq") == 0) {
+            return eq(eval(car(args)), eval(cadr(args)));
+        }
+        if (strcmp(fname, "not") == 0) {
+            return notf(eval(car(args)));
+        }
+    }
+    return makeSymbol("EvalError"); // fallback
 }
 
 // testing functions
@@ -645,35 +783,54 @@ void runTests() {
     assertTest("not(t)", notf(&truth), "()");
 }
 
+void testEnv() {
+    printf("=== Environment Tests ===\n");
 
+    SExp* x = makeSymbol("x");
+    SExp* y = makeSymbol("y");
+    SExp* val1 = makeLong(42);
+    SExp* val2 = makeString("hello");
+
+    // set x to 42
+    assertTest("set(x,42)", set(x, val1), "42");
+    // lookup x
+    assertTest("lookup(x)", lookup(x), "42");
+
+    // set y to "hello"
+    assertTest("set(y,\"hello\")", set(y, val2), "\"hello\"");
+    // lookup y
+    assertTest("lookup(y)", lookup(y), "\"hello\"");
+
+    // overwrite x to 100
+    SExp* val3 = makeLong(100);
+    assertTest("set(x,100)", set(x, val3), "100");
+    // lookup x again
+    assertTest("lookup(x)", lookup(x), "100");
+
+    // lookup undefined symbol z
+    SExp* z = makeSymbol("z");
+    assertTest("lookup(z)", lookup(z), "UndefinedSymbolLookup");
+}
 
 
 int main(){
     // runTests();
     // input loop, handle input from stdin
+    // testEnv();
+    char input[256];
+    printf("Type 'exit' to quit.\n");
+    while (1){
+        printf(">");
+        if (!fgets(input, sizeof(input), stdin)) break; // EOF
+        if (strcmp(input, "exit\n") == 0) break; // exit command
+        input[strcspn(input, "\n")] = 0; // remove newline
 
-    char input[100];
-    printf("Type additional s-expressions for testing, 'exit' to quit.\n");
-    while (strcmp(input, "exit\0") != 0){
-        if (fgets(input, sizeof(input), stdin) != NULL){
-            // handle \n character
-            char *pos;
-            if ((pos = strchr(input, '\n')) != NULL) {
-                *pos = '\0';
-            }
-            SExp* s = sexp(input);
-
-            // printSExp(s);
-            printf("%s\n", sexpToString(s));
-            printf("isSymbol: %s\n", sexpToBool(symbolp(s)) ? "true" : "false");
-            printf("isNumber: %s\n", sexpToBool(numberp(s)) ? "true" : "false");
-            printf("isString: %s\n", sexpToBool(stringp(s)) ? "true" : "false");
-            printf("isList: %s\n", sexpToBool(listp(s)) ? "true" : "false");
-            printf("isNil: %s\n", sexpToBool(nilp(s)) ? "true" : "false");
-        }
-        else {
-            printf("invalid input");
-        }
+        // parse
+        SExp* sexpInput = sexp(input);
+        // evaluate
+        SExp* result = eval(sexpInput);
+        // print result
+        printf("%s\n", sexpToString(result));
     }
     return 0;
 }

@@ -1,4 +1,4 @@
-# Project 1 - Sprints 1-3
+# LISP Interpreter Project - Sprints 1-3
 ### By: Cole Munn
 
 ## Overview
