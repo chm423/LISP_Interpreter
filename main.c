@@ -587,6 +587,19 @@ SExp* eval (SExp* sexp) {
             return set(var, val);
         }
 
+        // lists
+        if (strcmp(fname, "cons") == 0) {
+            SExp* head = eval(car(args));
+            SExp* tail = eval(cadr(args));
+            return cons(head, tail);
+        }
+        if (strcmp(fname, "car") == 0) {
+            return car(eval(car(args)));
+        }
+        if (strcmp(fname, "cdr") == 0) {
+            return cdr(eval(car(args)));
+        }
+
         // handle built-in functions
         if (strcmp(fname, "add") == 0) {
             return add(eval(car(args)), eval(cadr(args)));
@@ -620,6 +633,21 @@ SExp* eval (SExp* sexp) {
         }
         if (strcmp(fname, "not") == 0) {
             return notf(eval(car(args)));
+        }
+        if (strcmp(fname, "nil?") == 0) {
+            return nilp(eval(car(args)));
+        }
+        if (strcmp(fname, "symbol?") == 0) {
+            return symbolp(eval(car(args)));
+        }
+        if (strcmp(fname, "number?") == 0) {
+            return numberp(eval(car(args)));
+        }
+        if (strcmp(fname, "string?") == 0) {
+            return stringp(eval(car(args)));
+        }
+        if (strcmp(fname, "list?") == 0) {
+            return listp(eval(car(args)));
         }
     }
     return makeSymbol("EvalError"); // fallback
@@ -784,7 +812,7 @@ void runTests() {
 }
 
 void testEnv() {
-    printf("=== Environment Tests ===\n");
+    printf("=== Sprint 5 Tests ===\n");
 
     SExp* x = makeSymbol("x");
     SExp* y = makeSymbol("y");

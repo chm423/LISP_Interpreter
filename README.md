@@ -60,3 +60,4 @@ Some limitations of this program include:
 - many S-Expressions are not freed despite being dynamically allocated, causing memory leaks
 - large lists will overflow buffer in `sexpToString()` (limit 256 chars)
 - dotted pairs not read in properly (not required in assignment), '.' read as symbol
+- sometimes, when evaluating true functions (e.g. nil?) the printed output will be blank instead of "t"
