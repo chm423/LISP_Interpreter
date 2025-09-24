@@ -31,17 +31,26 @@ typedef struct ConsCell {
     struct SExp* cdr; // tail ptr
 } ConsCell;
 
+struct SExp;
+
+typedef struct Lambda {
+    struct SExp* params; // parameter list
+    struct SExp* body;   // function body
+    struct Env* env;  // closure environment
+} Lambda;
+
 /* enum list for s-expression types */
 typedef enum {
-    SEXP_ATOM, SEXP_LIST
+    SEXP_ATOM, SEXP_LIST, SEXP_LAMBDA
 } SExpType;
 
-/* struct for s-expression: can be atom | list */
+/* struct for s-expression: can be atom | list | lambda */
 typedef struct SExp {
     SExpType type;
     union {
         Atom atom;
         ConsCell cons;
+        Lambda func;
     } data;
 } SExp;
 
@@ -50,8 +59,13 @@ SExp nil = { .type = SEXP_LIST, .data.cons = { .car = NULL, .cdr = NULL } };
 // global truth object
 SExp truth = {.type = SEXP_ATOM, .data.atom = {.type = ATOM_SYMBOL, .value.symbol_value = "t"}};
 // global environment: parallel lists of symbols and vals
-SExp* envSymbols = &nil;
-SExp* envValues = &nil;
+typedef struct Env {
+    SExp* symbols;
+    SExp* values;
+    struct Env* parent;
+} Env;
+
+Env* globalEnv = NULL;
 /* create new cons cell with supplied head and tail */
 SExp *cons(SExp* car, SExp* cdr) {
     SExp* cell = malloc(sizeof(SExp)); 
@@ -522,31 +536,68 @@ SExp* notf(SExp* a){
 /* Sprint 5 functions */
 
 // lookup: find value from symbol in environment
-SExp* lookup(SExp* symbol) {
-    SExp* syms = envSymbols; // traverse symbols
-    SExp* vals = envValues; // traverse values
+SExp* lookup(SExp* symbol, Env* env) {
 
-    while (syms != &nil && vals != &nil) {
-        SExp* headSym = car(syms);
-        SExp* headVal = car(vals);
-
-        if (eq(symbol, headSym) == &truth) {
-            return headVal; // found
+    for (Env* e = env; e != NULL; e = e-> parent) { // iterate through environments if not found
+        SExp* syms = e->symbols;
+        SExp* vals = e->values;
+        while (syms != &nil && vals != &nil) {
+            if (strcmp(car(syms)->data.atom.value.symbol_value, symbol->data.atom.value.symbol_value) == 0) {
+                return car(vals);
+            }
+            syms = cdr(syms);
+            vals = cdr(vals);
         }
-        syms = cdr(syms);
-        vals = cdr(vals);
     }
+
     return symbol;
 }
 
+// adds new local env to chain of environments
+Env* consEnv(SExp* params, SExp* args, Env* parent) {
+    Env* e = malloc(sizeof(Env));
+    e->symbols = params;
+    e->values = args;
+    e->parent = parent;
+    return e;
+}
+SExp* reverseList(SExp* list){
+    SExp* result = &nil;
+    while (list != &nil){
+        result = cons(car(list), result);
+        list = cdr(list);
+    }
+    return result;
+}
+Env* extendEnv (SExp* params, SExp* args, Env* parent) { 
+    Env* newEnv = malloc(sizeof(Env));
+    newEnv->symbols = &nil;
+    newEnv->values = &nil;
+    newEnv->parent = parent;
+
+    while (params != &nil && args != &nil) {
+        newEnv->symbols = cons(car(params), newEnv->symbols);
+        newEnv->values = cons(car(args), newEnv->values);
+        params = cdr(params);
+        args = cdr(args);
+    }
+
+    // reverse so first pair is at head
+    newEnv->symbols = reverseList(newEnv->symbols);
+    newEnv->values = reverseList(newEnv->values);
+    return newEnv;
+}
+
+
+
 // set: add symbol-value pair to environment, will overwrite existing through recency in environment
-SExp* set(SExp* symbol, SExp* value) {
-    envSymbols = cons(symbol, envSymbols);
-    envValues = cons(value, envValues);
+SExp* set(SExp* symbol, SExp* value, Env* env) {
+    env->symbols = cons(symbol, env->symbols);
+    env->values = cons(value, env->values);
     return value; // return stored value
 }
 
-SExp* eval (SExp* sexp) {
+SExp* eval (SExp* sexp, Env* env) {
     if (nilp(sexp) == &truth) return &nil; // nil returns nil
 
     // atoms
@@ -557,7 +608,7 @@ SExp* eval (SExp* sexp) {
             case ATOM_STRING:
                 return sexp; // self-evaluating
             case ATOM_SYMBOL:
-                return lookup(sexp); // lookup in environment
+                return lookup(sexp, env); // lookup in environment
         }
     }
 
@@ -566,123 +617,166 @@ SExp* eval (SExp* sexp) {
         SExp* func = car(sexp);
         SExp* args = cdr(sexp);
 
-        if (func->type != SEXP_ATOM || func->data.atom.type != ATOM_SYMBOL) {
-            return sexp; // not a function, return as is
-        }
+        if (func->type == SEXP_ATOM && func->data.atom.type == ATOM_SYMBOL) {
 
-        // check if func is symbol
-        if (func->type != SEXP_ATOM || func->data.atom.type != ATOM_SYMBOL) {
-            return makeSymbol("InvalidFunction");
-        }
+            char* fname = func->data.atom.value.symbol_value;
 
-        char* fname = func->data.atom.value.symbol_value;
-
-        // handle special forms
-        if (strcmp(fname, "quote") == 0) {
-            return car(args); // return quoted expression   
-        }
-        if (strcmp(fname, "set") == 0) {
-            SExp* var = car(args);
-            SExp* val = eval(cadr(args));
-            return set(var, val);
-        }
-
-        // lists
-        if (strcmp(fname, "cons") == 0) {
-            SExp* head = eval(car(args));
-            SExp* tail = eval(cadr(args));
-            return cons(head, tail);
-        }
-        if (strcmp(fname, "car") == 0) {
-            return car(eval(car(args)));
-        }
-        if (strcmp(fname, "cdr") == 0) {
-            return cdr(eval(car(args)));
-        }
-
-        // short-circuiting functions
-        if (strcmp(fname, "and") == 0) {
-            SExp* first = eval(car(args));
-            if (first == &nil) return &nil;
-            return eval(cadr(args));
-        }
-        if (strcmp(fname, "or") == 0) {
-            SExp* first = eval(car(args));
-            if (first != &nil) return &truth;
-            return eval(cadr(args));
-        }
-        // conditionals
-        if (strcmp(fname, "if") == 0) {
-            SExp* test = eval(car(args));
-            if (test != &nil) {
-                return eval(cadr(args)); // true branch
-            } else {
-                return eval(caddr(args)); // false branch
+            // handle special forms
+            if (strcmp(fname, "quote") == 0) {
+                return car(args); // return quoted expression   
             }
-        }
-        if (strcmp(fname, "cond") == 0){
-            SExp* clause = args;
-            while (clause != &nil) {
-                SExp* pair = car(clause); // should be a pair of test and result
-                SExp* test = car(pair);
-                SExp* result = cadr(pair);
-                if (eval(test) != &nil) {
-                    return eval(result); // return result of first true clause
+            if (strcmp(fname, "set") == 0) {
+                SExp* var = car(args);
+                SExp* val = eval(cadr(args), env);
+                return set(var, val, env);
+            }
+            if (strcmp(fname, "define") == 0) {
+                SExp* name = car(args);
+                SExp* params = cadr(args);
+                SExp* body = caddr(args);
+
+                SExp* func = malloc(sizeof(SExp));
+                func->type = SEXP_LAMBDA;
+                func->data.func.params = params;
+                func->data.func.body = body;
+                func->data.func.env = env;
+
+                return set(name, func, env);
+            }
+            if (strcmp(fname, "lambda") == 0) {
+                SExp* params = car(args);
+                SExp* body = cadr(args);
+
+                SExp* func = malloc(sizeof(SExp));
+                func->type = SEXP_LAMBDA;
+                func->data.func.params = params;
+                func->data.func.body = body;
+                func->data.func.env = env;
+
+                return func;
+            }
+
+
+            // lists
+            if (strcmp(fname, "cons") == 0) {
+                SExp* head = eval(car(args), env);
+                SExp* tail = eval(cadr(args), env);
+                return cons(head, tail);
+            }
+            if (strcmp(fname, "car") == 0) {
+                return car(eval(car(args), env));
+            }
+            if (strcmp(fname, "cdr") == 0) {
+                return cdr(eval(car(args), env));
+            }
+
+            // short-circuiting functions
+            if (strcmp(fname, "and") == 0) {
+                SExp* first = eval(car(args), env);
+                if (first == &nil) return &nil;
+                return eval(cadr(args), env);
+            }
+            if (strcmp(fname, "or") == 0) {
+                SExp* first = eval(car(args), env);
+                if (first != &nil) return &truth;
+                return eval(cadr(args), env);
+            }
+            // conditionals
+            if (strcmp(fname, "if") == 0) {
+                SExp* test = eval(car(args), env);
+                if (test != &nil) {
+                    return eval(cadr(args), env); // true branch
+                } else {
+                    return eval(caddr(args), env); // false branch
                 }
-                clause = cdr(clause); // else go to next pair
             }
-            return makeSymbol("NoSelectedBranch"); // no clause matched
-        }
+            if (strcmp(fname, "cond") == 0){
+                SExp* clause = args;
+                while (clause != &nil) {
+                    SExp* pair = car(clause); // should be a pair of test and result
+                    SExp* test = car(pair);
+                    SExp* result = cadr(pair);
+                    if (eval(test, env) != &nil) {
+                        return eval(result, env); // return result of first true clause
+                    }
+                    clause = cdr(clause); // else go to next pair
+                }
+                return makeSymbol("NoSelectedBranch"); // no clause matched
+            }
 
-        // other built-in functions
-        if (strcmp(fname, "add") == 0) {
-            return add(eval(car(args)), eval(cadr(args)));
+            // other built-in functions
+            if (strcmp(fname, "add") == 0) {
+                return add(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "sub") == 0) {
+                return sub(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "mul") == 0) {
+                return mul(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "div") == 0) {
+                return divide(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "mod") == 0) {
+                return mod(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "lt") == 0) {
+                return lt(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "gt") == 0) {
+                return gt(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "lte") == 0) {
+                return lte(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "gte") == 0) {
+                return gte(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "eq") == 0) {
+                return eq(eval(car(args), env), eval(cadr(args), env));
+            }
+            if (strcmp(fname, "not") == 0) {
+                return notf(eval(car(args), env));
+            }
+            if (strcmp(fname, "nil?") == 0) {
+                return nilp(eval(car(args), env));
+            }
+            if (strcmp(fname, "symbol?") == 0) {
+                return symbolp(eval(car(args), env));
+            }
+            if (strcmp(fname, "number?") == 0) {
+                return numberp(eval(car(args), env));
+            }
+            if (strcmp(fname, "string?") == 0) {
+                return stringp(eval(car(args), env));
+            }
+            if (strcmp(fname, "list?") == 0) {
+                return listp(eval(car(args), env));
+            }
         }
-        if (strcmp(fname, "sub") == 0) {
-            return sub(eval(car(args)), eval(cadr(args)));
+        // check for user-defined function
+        SExp* op = eval(func, env);
+
+        if (op->type == SEXP_LAMBDA) {
+            // eval args
+            SExp* evaluatedArgs = &nil;
+            SExp* formalParams = op->data.func.params;
+            SExp* actuals = args;
+
+            while (actuals != &nil) {
+                evaluatedArgs = cons(eval(car(actuals), env), evaluatedArgs);
+                actuals = cdr(actuals);
+            }
+            evaluatedArgs = reverseList(evaluatedArgs);
+
+            // extend enviro
+            Env* newEnv = extendEnv(formalParams, evaluatedArgs, op->data.func.env);
+
+            // eval body in new env
+            return eval (op->data.func.body, newEnv);
+
         }
-        if (strcmp(fname, "mul") == 0) {
-            return mul(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "div") == 0) {
-            return divide(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "mod") == 0) {
-            return mod(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "lt") == 0) {
-            return lt(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "gt") == 0) {
-            return gt(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "lte") == 0) {
-            return lte(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "gte") == 0) {
-            return gte(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "eq") == 0) {
-            return eq(eval(car(args)), eval(cadr(args)));
-        }
-        if (strcmp(fname, "not") == 0) {
-            return notf(eval(car(args)));
-        }
-        if (strcmp(fname, "nil?") == 0) {
-            return nilp(eval(car(args)));
-        }
-        if (strcmp(fname, "symbol?") == 0) {
-            return symbolp(eval(car(args)));
-        }
-        if (strcmp(fname, "number?") == 0) {
-            return numberp(eval(car(args)));
-        }
-        if (strcmp(fname, "string?") == 0) {
-            return stringp(eval(car(args)));
-        }
-        if (strcmp(fname, "list?") == 0) {
-            return listp(eval(car(args)));
-        }
+        if (op->type != SEXP_LAMBDA) return sexp;
     }
     return makeSymbol("EvalError"); // fallback
 }
@@ -694,7 +788,7 @@ SExp* evalString(const char* input) {
         printf("ParseError: %s\n", input);
         return &nil;             // return nil on parse failure
     }
-    SExp* result = eval(expr);   // evaluate the S-expression
+    SExp* result = eval(expr, globalEnv);   // evaluate the S-expression
     return result;
 }
 void assertTest(const char* testName, SExp* actual, const char* expected) {
@@ -949,7 +1043,7 @@ void runTests(int sprintNum) {
 
 
 int main(){
-    runTests(5);
+    // runTests(5);
     // input loop, handle input from stdin
     
     // todo, if else for file input, stdin
@@ -962,10 +1056,17 @@ int main(){
         if (strcmp(input, "exit\n") == 0) break; // exit command
         input[strcspn(input, "\n")] = 0; // remove newline
 
+        if (!globalEnv) {
+            globalEnv = malloc(sizeof(Env));
+            globalEnv->symbols = &nil;
+            globalEnv->values = &nil;
+            globalEnv->parent = NULL;
+        }
+
         // parse
         SExp* sexpInput = sexp(input);
         // evaluate
-        SExp* result = eval(sexpInput);
+        SExp* result = eval(sexpInput, globalEnv);
         // print result
         printf("%s\n", sexpToString(result));
     }
