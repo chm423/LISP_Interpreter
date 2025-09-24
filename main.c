@@ -600,7 +600,41 @@ SExp* eval (SExp* sexp) {
             return cdr(eval(car(args)));
         }
 
-        // handle built-in functions
+        // short-circuiting functions
+        if (strcmp(fname, "and") == 0) {
+            SExp* first = eval(car(args));
+            if (first == &nil) return &nil;
+            return eval(cadr(args));
+        }
+        if (strcmp(fname, "or") == 0) {
+            SExp* first = eval(car(args));
+            if (first != &nil) return &truth;
+            return eval(cadr(args));
+        }
+        // conditionals
+        if (strcmp(fname, "if") == 0) {
+            SExp* test = eval(car(args));
+            if (test != &nil) {
+                return eval(cadr(args)); // true branch
+            } else {
+                return eval(caddr(args)); // false branch
+            }
+        }
+        if (strcmp(fname, "cond") == 0){
+            SExp* clause = args;
+            while (clause != &nil) {
+                SExp* pair = car(clause); // should be a pair of test and result
+                SExp* test = car(pair);
+                SExp* result = cadr(pair);
+                if (eval(test) != &nil) {
+                    return eval(result); // return result of first true clause
+                }
+                clause = cdr(clause); // else go to next pair
+            }
+            return makeSymbol("NoSelectedBranch"); // no clause matched
+        }
+
+        // other built-in functions
         if (strcmp(fname, "add") == 0) {
             return add(eval(car(args)), eval(cadr(args)));
         }
@@ -654,6 +688,15 @@ SExp* eval (SExp* sexp) {
 }
 
 // testing functions
+SExp* evalString(const char* input) {
+    SExp* expr = sexp(input);   // parse string into an S-expression
+    if (!expr) {
+        printf("ParseError: %s\n", input);
+        return &nil;             // return nil on parse failure
+    }
+    SExp* result = eval(expr);   // evaluate the S-expression
+    return result;
+}
 void assertTest(const char* testName, SExp* actual, const char* expected) {
     char* got = sexpToString(actual);
     if (strcmp(got, expected) == 0) {
@@ -662,7 +705,7 @@ void assertTest(const char* testName, SExp* actual, const char* expected) {
         printf("FAILED: %s => got %s, expected %s\n", testName, got, expected);
     }
 }
-void runTests() {
+void runTests(int sprintNum) {
     SExp* two = makeLong(2);
     SExp* three = makeLong(3);
     SExp* four = makeLong(4);
@@ -670,181 +713,247 @@ void runTests() {
     SExp* ten = makeLong(10);
     SExp* point5 = makeDouble(2.5);
 
-    // Sprint 1
-    printf("=== Sprint 1 Tests ===\n");
+    if (sprintNum == 1) {
+        // Sprint 1
+        printf("=== Sprint 1 Tests ===\n");
 
-    // nil
-    printf("--- nil check ---\n");
-    assertTest("nilp( () )", nilp(&nil), "t");
-    assertTest("nilp(5)", nilp(makeLong(5)), "()");
+        // nil
+        printf("--- nil check ---\n");
+        assertTest("nilp( () )", nilp(&nil), "t");
+        assertTest("nilp(5)", nilp(makeLong(5)), "()");
 
-    // numbers
-    printf("--- number check ---\n");
-    assertTest("numberp(123)", numberp(makeLong(123)), "t");
-    assertTest("numberp(3.14)", numberp(makeDouble(3.14)), "t");
-    assertTest("numberp(x)", numberp(makeSymbol("x")), "()");
+        // numbers
+        printf("--- number check ---\n");
+        assertTest("numberp(123)", numberp(makeLong(123)), "t");
+        assertTest("numberp(3.14)", numberp(makeDouble(3.14)), "t");
+        assertTest("numberp(x)", numberp(makeSymbol("x")), "()");
 
-    // symbols
-    printf("--- symbol check ---\n");
-    assertTest("symbolp(x)", symbolp(makeSymbol("x")), "t");
-    assertTest("symbolp(\"hi\")", symbolp(makeString("hi")), "()");
+        // symbols
+        printf("--- symbol check ---\n");
+        assertTest("symbolp(x)", symbolp(makeSymbol("x")), "t");
+        assertTest("symbolp(\"hi\")", symbolp(makeString("hi")), "()");
 
-    // strings
-    printf("--- string check ---\n");
-    assertTest("stringp(\"hello\")", stringp(makeString("hello")), "t");
-    assertTest("stringp(42)", stringp(makeLong(42)), "()");
+        // strings
+        printf("--- string check ---\n");
+        assertTest("stringp(\"hello\")", stringp(makeString("hello")), "t");
+        assertTest("stringp(42)", stringp(makeLong(42)), "()");
 
-    // lists
-    printf("--- list check ---\n");
-    assertTest("listp( () )", listp(&nil), "t");
-    assertTest("listp(cons(1, ()))", listp(cons(makeLong(1), &nil)), "t");
-    assertTest("listp(symbol)", listp(makeSymbol("y")), "()");
+        // lists
+        printf("--- list check ---\n");
+        assertTest("listp( () )", listp(&nil), "t");
+        assertTest("listp(cons(1, ()))", listp(cons(makeLong(1), &nil)), "t");
+        assertTest("listp(symbol)", listp(makeSymbol("y")), "()");
 
-    // bools
-    printf("--- bool check ---\n");
-    assertTest("sexpToBool(())", sexpToBool(&nil) ? &truth : &nil, "()");
-    assertTest("sexpToBool(cons(1, ()))", sexpToBool(cons(makeLong(1), &nil)) ? &truth : &nil, "t");
-    assertTest("sexpToBool(5)", sexpToBool(makeLong(5)) ? &truth : &nil, "t");
+        // bools
+        printf("--- bool check ---\n");
+        assertTest("sexpToBool(())", sexpToBool(&nil) ? &truth : &nil, "()");
+        assertTest("sexpToBool(cons(1, ()))", sexpToBool(cons(makeLong(1), &nil)) ? &truth : &nil, "t");
+        assertTest("sexpToBool(5)", sexpToBool(makeLong(5)) ? &truth : &nil, "t");
 
-    // cons, car, cdr
-    printf("--- cons cells, car, cdr ---\n");
-    SExp* lst = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
-    assertTest("cons(a,(b))", lst, "(a b)");
-    assertTest("car((a b))", car(lst), "a");
-    assertTest("cdr((a b))", cdr(lst), "(b)");
+        // cons, car, cdr
+        printf("--- cons cells, car, cdr ---\n");
+        SExp* lst = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
+        assertTest("cons(a,(b))", lst, "(a b)");
+        assertTest("car((a b))", car(lst), "a");
+        assertTest("cdr((a b))", cdr(lst), "(b)");
 
-    // dotted pair
-    printf("--- dotted pairs ---\n");
-    SExp* dotted = cons(makeSymbol("x"), makeSymbol("y"));
-    assertTest("cons(x,y)", dotted, "(x . y)");
-    assertTest("cdr(a . b)", cdr(sexp("(a . b)")), "b");
+        // dotted pair
+        printf("--- dotted pairs ---\n");
+        SExp* dotted = cons(makeSymbol("x"), makeSymbol("y"));
+        assertTest("cons(x,y)", dotted, "(x . y)");
+        assertTest("cdr(a . b)", cdr(sexp("(a . b)")), "b");
 
-    // nested list
-    printf("--- nested list ---\n");
-    SExp* nested = cons(makeSymbol("a"), cons(cons(makeLong(1), cons(makeLong(2), &nil)), &nil));
-    assertTest("nested list (a (1 2))", nested, "(a (1 2))");
+        // nested list
+        printf("--- nested list ---\n");
+        SExp* nested = cons(makeSymbol("a"), cons(cons(makeLong(1), cons(makeLong(2), &nil)), &nil));
+        assertTest("nested list (a (1 2))", nested, "(a (1 2))");
 
-    // sexp constuctor
-    printf("--- sexp constructor ---\n");
-    assertTest("sexp(\"42\")", sexp("42"), "42");
-    assertTest("sexp(\"3.14\")", sexp("3.14"), "3.140000");
-    assertTest("sexp(\"hello\")", sexp("hello"), "hello");
-    assertTest("sexp(\"\\\"hi\\\"\")", sexp("\"hi\""), "\"hi\"");
-    assertTest("sexp(\"(a b c)\")", sexp("(a b c)"), "(a b c)");
-    assertTest("sexp(\"(1 (2 3) 4)\")", sexp("(1 (2 3) 4)"), "(1 (2 3) 4)");
-    assertTest("sexp(\"(a . b)\")", sexp("(a . b)"), "(a . b)");
+        // sexp constuctor
+        printf("--- sexp constructor ---\n");
+        assertTest("sexp(\"42\")", sexp("42"), "42");
+        assertTest("sexp(\"3.14\")", sexp("3.14"), "3.140000");
+        assertTest("sexp(\"hello\")", sexp("hello"), "hello");
+        assertTest("sexp(\"\\\"hi\\\"\")", sexp("\"hi\""), "\"hi\"");
+        assertTest("sexp(\"(a b c)\")", sexp("(a b c)"), "(a b c)");
+        assertTest("sexp(\"(1 (2 3) 4)\")", sexp("(1 (2 3) 4)"), "(1 (2 3) 4)");
+        assertTest("sexp(\"(a . b)\")", sexp("(a . b)"), "(a . b)");
+    }
+    else if (sprintNum == 2){
+        // Sprint 2
+        printf("=== Sprint 2 Tests ===\n");
+        // car
+        printf("--- car ---\n");
+        SExp* abList = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
+        assertTest("car((a b))", car(abList), "a");
+        assertTest("car((5))", car(cons(makeLong(5), &nil)), "5");
+        assertTest("car( () )", car(&nil), "()");
 
-    // Sprint 2
-    printf("=== Sprint 2 Tests ===\n");
-    // car
-    printf("--- car ---\n");
-    SExp* abList = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
-    assertTest("car((a b))", car(abList), "a");
-    assertTest("car((5))", car(cons(makeLong(5), &nil)), "5");
-    assertTest("car( () )", car(&nil), "()");
+        // cdr
+        printf("--- cdr ---\n");
+        assertTest("cdr((a b))", cdr(abList), "(b)");
+        assertTest("cdr((a))", cdr(cons(makeSymbol("a"), &nil)), "()");
+        assertTest("cdr( () )", cdr(&nil), "()");
+    }
+    else if (sprintNum == 3){
+        // Sprint 3
+        printf("=== Sprint 3 Tests ===\n");
 
-    // cdr
-    printf("--- cdr ---\n");
-    assertTest("cdr((a b))", cdr(abList), "(b)");
-    assertTest("cdr((a))", cdr(cons(makeSymbol("a"), &nil)), "()");
-    assertTest("cdr( () )", cdr(&nil), "()");
+        // arithmetic
+        printf("--- arithmetic ---\n");
+        assertTest("add(2,3)", add(two, three), "5");
+        assertTest("add(2.5,3)", add(point5, three), "5.500000");
 
-    // Sprint 3
-    printf("=== Sprint 3 Tests ===\n");
+        assertTest("sub(10,4)", sub(ten, four), "6");
+        assertTest("sub(10,2.5)", sub(ten, point5), "7.500000");
 
-    // arithmetic
-    printf("--- arithmetic ---\n");
-    assertTest("add(2,3)", add(two, three), "5");
-    assertTest("add(2.5,3)", add(point5, three), "5.500000");
+        assertTest("mul(3,4)", mul(three, four), "12");
+        assertTest("mul(2.5,4)", mul(point5, four), "10");
 
-    assertTest("sub(10,4)", sub(ten, four), "6");
-    assertTest("sub(10,2.5)", sub(ten, point5), "7.500000");
+        assertTest("divide(10,2)", divide(ten, two), "5");
+        assertTest("divide(10,4)", divide(ten, four), "2.500000");
+        assertTest("divide(10,0)", divide(ten, makeLong(0)), "DivideByZero");
 
-    assertTest("mul(3,4)", mul(three, four), "12");
-    assertTest("mul(2.5,4)", mul(point5, four), "10");
+        assertTest("mod(10,3)", mod(ten, three), "1");
+        assertTest("mod(10,5)", mod(ten, five), "0");
+        assertTest("mod(10,0)", mod(ten, makeLong(0)), "DivideByZero");
 
-    assertTest("divide(10,2)", divide(ten, two), "5");
-    assertTest("divide(10,4)", divide(ten, four), "2.500000");
-    assertTest("divide(10,0)", divide(ten, makeLong(0)), "DivideByZero");
+        // comparison
+        printf("--- comparison ---\n");
+        assertTest("lt(2,3)", lt(two, three), "t");
+        assertTest("lt(3,2)", lt(three, two), "()");
+        assertTest("lt(a,b)", lt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
+        assertTest("lt(2,a)", lt(two, makeSymbol("a")), "NotANumber");
 
-    assertTest("mod(10,3)", mod(ten, three), "1");
-    assertTest("mod(10,5)", mod(ten, five), "0");
-    assertTest("mod(10,0)", mod(ten, makeLong(0)), "DivideByZero");
+        assertTest("gt(5,2)", gt(five, two), "t");
+        assertTest("gt(2,5)", gt(two, five), "()");
+        assertTest("gt(a,b)", gt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
+        assertTest("gt(2,b)", gt(two, makeSymbol("b")), "NotANumber");
 
-    // comparison
-    printf("--- comparison ---\n");
-    assertTest("lt(2,3)", lt(two, three), "t");
-    assertTest("lt(3,2)", lt(three, two), "()");
-    assertTest("lt(a,b)", lt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-    assertTest("lt(2,a)", lt(two, makeSymbol("a")), "NotANumber");
+        assertTest("lte(2,2)", lte(two, two), "t");
+        assertTest("lte(3,2)", lte(three, two), "()");
+        assertTest("lte(a,b)", lte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
+        assertTest("lte(2,b)", lte(two, makeSymbol("b")), "NotANumber");
 
-    assertTest("gt(5,2)", gt(five, two), "t");
-    assertTest("gt(2,5)", gt(two, five), "()");
-    assertTest("gt(a,b)", gt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-    assertTest("gt(2,b)", gt(two, makeSymbol("b")), "NotANumber");
+        assertTest("gte(3,2)", gte(three, two), "t");
+        assertTest("gte(2,3)", gte(two, three), "()");
+        assertTest("gte(a,b)", gte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
+        assertTest("gte(2,b)", gte(two, makeSymbol("b")), "NotANumber");
 
-    assertTest("lte(2,2)", lte(two, two), "t");
-    assertTest("lte(3,2)", lte(three, two), "()");
-    assertTest("lte(a,b)", lte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-    assertTest("lte(2,b)", lte(two, makeSymbol("b")), "NotANumber");
+        // equality
+        printf("--- equality ---\n");
+        assertTest("eq(2,2)", eq(two, makeLong(2)), "t");
+        assertTest("eq(2,2.5)", eq(two, point5), "()");
+        assertTest("eq(a,a)", eq(makeSymbol("a"), makeSymbol("a")), "t");
+        assertTest("eq(a,b)", eq(makeSymbol("a"), makeSymbol("b")), "()");
+        assertTest("eq(\"hi\",\"hi\")", eq(makeString("hi"), makeString("hi")), "t");
 
-    assertTest("gte(3,2)", gte(three, two), "t");
-    assertTest("gte(2,3)", gte(two, three), "()");
-    assertTest("gte(a,b)", gte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-    assertTest("gte(2,b)", gte(two, makeSymbol("b")), "NotANumber");
+        SExp* list1 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
+        SExp* list2 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
+        assertTest("eq((1 2 3),(1 2 3))", eq(list1, list2), "t");
 
-    // equality
-    printf("--- equality ---\n");
-    assertTest("eq(2,2)", eq(two, makeLong(2)), "t");
-    assertTest("eq(2,2.5)", eq(two, point5), "()");
-    assertTest("eq(a,a)", eq(makeSymbol("a"), makeSymbol("a")), "t");
-    assertTest("eq(a,b)", eq(makeSymbol("a"), makeSymbol("b")), "()");
-    assertTest("eq(\"hi\",\"hi\")", eq(makeString("hi"), makeString("hi")), "t");
+        // logical
+        printf("--- logical ---\n");
+        assertTest("not(nil)", notf(&nil), "t");
+        assertTest("not(t)", notf(&truth), "()");
+    }
+    else if (sprintNum == 4) {
+        // sprint 4 was submitting 1-3
+        runTests(1);
+        runTests(2);
+        runTests(3);
+    }
+    else if (sprintNum == 5) {
+        printf("=== Sprint 5 Tests ===\n");
+        SExp* x = makeSymbol("x");
+        SExp* y = makeSymbol("y");
+        SExp* val1 = makeLong(42);
+        SExp* val2 = makeString("hello");
 
-    SExp* list1 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
-    SExp* list2 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
-    assertTest("eq((1 2 3),(1 2 3))", eq(list1, list2), "t");
+        // set and lookup
+        assertTest("(set x 42)", evalString("(set x 42)"), "42"); 
+        assertTest("x", evalString("x"), "42");
 
-    // logical
-    printf("--- logical ---\n");
-    assertTest("not(nil)", notf(&nil), "t");
-    assertTest("not(t)", notf(&truth), "()");
+        assertTest("(set y \"hello\")", evalString("(set y \"hello\")"), "\"hello\"");
+        assertTest("y", evalString("y"), "\"hello\"");
+
+        // overwrite x to 100
+        assertTest("(set x 100)", evalString("(set x 100)"), "100");
+        assertTest("x", evalString("x"), "100");
+
+        // lookup undefined symbol
+        assertTest("z", evalString("z"), "z");
+
+         // nested set and arithmetic
+        assertTest("(set x (add 1 2))", evalString("(set x (add 1 2))"), "3");
+        assertTest("(add x 4)", evalString("(add x 4)"), "7");
+
+        // test overwriting with different types
+        assertTest("(set x \"new\")", evalString("(set x \"new\")"), "\"new\"");
+        assertTest("x", evalString("x"), "\"new\"");
+
+        // test setting to nil
+        assertTest("(set y ())", evalString("(set y ())"), "()");
+        assertTest("y", evalString("y"), "()");
+
+        // test set with complex expression
+        assertTest("(set x (add (mul 2 3) (sub 10 4)))", evalString("(set x (add (mul 2 3) (sub 10 4)))"), "12");
+        assertTest("x", evalString("x"), "12");
+
+        // test nested set within list
+        assertTest("(set x (cons 1 (cons 2 ())))", evalString("(set x (cons 1 (cons 2 ())))"), "(1 2)");
+        assertTest("(car x)", evalString("(car x)"), "1");
+        assertTest("(cdr x)", evalString("(cdr x)"), "(2)");
+
+        // test setting and evaluating symbol as list
+        assertTest("(set x (cons y ()))", evalString("(set x (cons y ()))"), "(())");
+
+        // quoting
+        assertTest("(set x '(add 2 3))", evalString("(set x '(add 2 3))"), "(add 2 3)");
+        assertTest("x", evalString("x"), "6");
+    }
+    else if (sprintNum == 6) {
+        printf("=== Sprint 6 Tests ===\n");
+
+        // and short-circuiting
+        assertTest("and(() fail)", evalString("(and () fail)"), "()");
+        assertTest("and('t 5)", evalString("(and 't 5)"), "5");
+        assertTest("and('t 't 42)", evalString("(and 't 't 42)"), "42");
+
+        // or short-circuiting
+        assertTest("or('t, fail)", evalString("(or 't fail)"), "t");
+        assertTest("or(() ())", evalString("(or () 123)"), "123");
+        assertTest("or(() ())", evalString("(or () ())"), "()");
+        assertTest("or(() () t)", evalString("(or () () 't)"), "t");
+
+        // if conditional
+        assertTest("(if 't 1 2)", evalString("(if 't 1 2)"), "1");
+        assertTest("(if () 1 2)", evalString("(if () 1 2)"), "2");
+        assertTest("(if 't yes no)", evalString("(if 't yes no)"), "yes");
+
+        // cond conditional
+        assertTest("(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))", evalString("(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))"), "\"greater\"");
+        assertTest("(cond (() \"first\") ('t \"fallback\"))", evalString("(cond (() \"first\") ('t \"fallback\"))"), "\"fallback\"");
+        assertTest("(cond (() 1) (() 2))", evalString("(cond (() 1) (() 2))"), "NoSelectedBranch");
+
+        assertTest("(cond ((and () skip) 1) ((or 't noskip) 2))", evalString("(cond ((and () skip) 1) ((or 't noskip) 2))"), "2");
+
+        // nested expressions
+        assertTest("(and (if () 't ()) 't)", evalString("(and (if () 't ()) 't)"), "()");
+        assertTest("(cond ((and 't () ) none) ((or () 't) matched))", evalString("(cond ((and 't () ) none) ((or () 't) matched))"), "matched");
+
+        // quoted expressions
+        assertTest("(cond ('t \"should print\") (() \"should not print\"))", evalString("(cond ('t \"should print\") (() \"should not print\"))"), "\"should print\"");
+    }
 }
 
-void testEnv() {
-    printf("=== Sprint 5 Tests ===\n");
-
-    SExp* x = makeSymbol("x");
-    SExp* y = makeSymbol("y");
-    SExp* val1 = makeLong(42);
-    SExp* val2 = makeString("hello");
-
-    // set x to 42
-    assertTest("set(x,42)", set(x, val1), "42");
-    // lookup x
-    assertTest("lookup(x)", lookup(x), "42");
-
-    // set y to "hello"
-    assertTest("set(y,\"hello\")", set(y, val2), "\"hello\"");
-    // lookup y
-    assertTest("lookup(y)", lookup(y), "\"hello\"");
-
-    // overwrite x to 100
-    SExp* val3 = makeLong(100);
-    assertTest("set(x,100)", set(x, val3), "100");
-    // lookup x again
-    assertTest("lookup(x)", lookup(x), "100");
-
-    // lookup undefined symbol z
-    SExp* z = makeSymbol("z");
-    assertTest("lookup(z)", lookup(z), "UndefinedSymbolLookup");
-}
 
 
 int main(){
-    // runTests();
+    runTests(5);
     // input loop, handle input from stdin
-    // testEnv();
+    
+    // todo, if else for file input, stdin
+
     char input[256];
     printf("Type 'exit' to quit.\n");
     while (1){
