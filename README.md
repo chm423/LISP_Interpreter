@@ -50,7 +50,7 @@ Inputs shown in the results consist of inline S-Expressions declared within the 
 
 Passed tests display the result that was expected (which would match the given result), while failed tests provide the received result and what it expected instead.
 ## Documentation
-Overall, the project appears fairly functional and performs as expected. The failed tests in listed in the results are to be expected as their correct implementation is not required for the project (e.g. equality functions between lists, longs and floats, etc.)
+
 Some limitations of this program include:
 - inability for input loop to parse s-expressions that span multiple lines
 - no implementation of the quote function (as of yet)
@@ -61,3 +61,5 @@ Some limitations of this program include:
 - large lists will overflow buffer in `sexpToString()` (limit 256 chars)
 - dotted pairs not read in properly (not required in assignment), '.' read as symbol
 - sometimes, when evaluating true functions (e.g. nil?) the printed output will be blank instead of "t"
+- `and`, `or` assume the user only inputs 2 S-Expressions following the declaration, meaning any additional inputs won't be considered
+- nested eval functions don't apply, the inner eval doesn't get called
