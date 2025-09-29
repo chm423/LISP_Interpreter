@@ -1,89 +1,172 @@
 === Sprint 1 Tests ===
 --- nil check ---
-PASSED: nilp( () ) => t
-PASSED: nilp(5) => ()
+PASSED: (nil? ()) => t
+PASSED: (nil? 5) => ()
+PASSED: (nil? (nilp())) => ()
 --- number check ---
-PASSED: numberp(123) => t
-PASSED: numberp(3.14) => t
-PASSED: numberp(x) => ()
+PASSED: (number? 123) => t
+PASSED: (number? 3.14) => t
+PASSED: (number? x) => ()
+PASSED: (number? 9223372036854775807) => t
+PASSED: (number? -42) => t
 --- symbol check ---
-PASSED: symbolp(x) => t
-PASSED: symbolp("hi") => ()
+PASSED: (symbol? x) => t
+PASSED: (symbol? "hi") => ()
+PASSED: (symbol? "") => ()
+PASSED: (symbol? @#$) => t
 --- string check ---
-PASSED: stringp("hello") => t
-PASSED: stringp(42) => ()
+PASSED: (string? "hello") => t
+PASSED: (string? 42) => ()
+PASSED: (string? "") => t
+PASSED: (string? "\n") => t
 --- list check ---
-PASSED: listp( () ) => t
-PASSED: listp(cons(1, ())) => t
-PASSED: listp(symbol) => ()
+PASSED: (list? ()) => t
+PASSED: (list? (cons 1 ())) => t
+PASSED: (list? y) => ()
+PASSED: (list? (())) => t
 --- bool check ---
-PASSED: sexpToBool(()) => ()
-PASSED: sexpToBool(cons(1, ())) => t
-PASSED: sexpToBool(5) => t
+PASSED: (sexpToBool ()) => ()
+PASSED: (sexpToBool (cons 1 ())) => t
+PASSED: (sexpToBool 5) => t
 --- cons cells, car, cdr ---
-PASSED: cons(a,(b)) => (a b)
-PASSED: car((a b)) => a
-PASSED: cdr((a b)) => (b)
+PASSED: (cons a (b)) => (a b)
+PASSED: (car (a b)) => a
+PASSED: (cdr (a b)) => (b)
+PASSED: (car ((1 2) 3)) => (1 2)
 --- dotted pairs ---
-PASSED: cons(x,y) => (x . y)
-FAILED: cdr(a . b) => got (. b), expected b
+PASSED: (cons x y) => (x . y)
+FAILED: (cdr (a . b)) => got (. b), expected b
 --- nested list ---
-PASSED: nested list (a (1 2)) => (a (1 2))
+PASSED: (a (1 2)) => (a (1 2))
 --- sexp constructor ---
-PASSED: sexp("42") => 42
-PASSED: sexp("3.14") => 3.140000
-PASSED: sexp("hello") => hello
-PASSED: sexp("\"hi\"") => "hi"
-PASSED: sexp("(a b c)") => (a b c)
-PASSED: sexp("(1 (2 3) 4)") => (1 (2 3) 4)
-PASSED: sexp("(a . b)") => (a . b)
+PASSED: (sexp "42") => 42
+PASSED: (sexp "3.14") => 3.140000
+PASSED: (sexp "hello") => hello
+PASSED: (sexp "\"hi\"") => "hi"
+PASSED: (sexp "(a b c)") => (a b c)
+PASSED: (sexp "(1 (2 3) 4)") => (1 (2 3) 4)
+PASSED: (sexp "(a . b)") => (a . b)
 === Sprint 2 Tests ===
 --- car ---
-PASSED: car((a b)) => a
-PASSED: car((5)) => 5
-PASSED: car( () ) => ()
+PASSED: (car (a b)) => a
+PASSED: (car (5)) => 5
+PASSED: (car ()) => ()
 --- cdr ---
-PASSED: cdr((a b)) => (b)
-PASSED: cdr((a)) => ()
-PASSED: cdr( () ) => ()
+PASSED: (cdr (a b)) => (b)
+PASSED: (cdr (a)) => ()
+PASSED: (cdr ()) => ()
 === Sprint 3 Tests ===
 --- arithmetic ---
-PASSED: add(2,3) => 5
-PASSED: add(2.5,3) => 5.500000
-PASSED: sub(10,4) => 6
-PASSED: sub(10,2.5) => 7.500000
-PASSED: mul(3,4) => 12
-PASSED: mul(2.5,4) => 10
-PASSED: divide(10,2) => 5
-PASSED: divide(10,4) => 2.500000
-PASSED: divide(10,0) => DivideByZero
-PASSED: mod(10,3) => 1
-PASSED: mod(10,5) => 0
-PASSED: mod(10,0) => DivideByZero
+PASSED: (add 2 3) => 5
+PASSED: (add 2.5 3) => 5.500000
+PASSED: (add 0.1 0.2) => 0.300000
+PASSED: (sub 2 5) => -3
+PASSED: (add 1 "hi") => Error: Operand not a number
+PASSED: (mul 3 4) => 12
+PASSED: (mul 2.5 4) => 10
+PASSED: (divide 10 2) => 5
+PASSED: (divide 10 4) => 2.500000
+PASSED: (divide 10 0) => Error: Divide by zero
+PASSED: (mod 10 3) => 1
+PASSED: (mod 10 5) => 0
+PASSED: (mod 10 0) => Error: Divide by zero
 --- comparison ---
-PASSED: lt(2,3) => t
-PASSED: lt(3,2) => ()
-PASSED: lt(a,b) => NotANumber
-PASSED: lt(2,a) => NotANumber
-PASSED: gt(5,2) => t
-PASSED: gt(2,5) => ()
-PASSED: gt(a,b) => NotANumber
-PASSED: gt(2,b) => NotANumber
-PASSED: lte(2,2) => t
-PASSED: lte(3,2) => ()
-PASSED: lte(a,b) => NotANumber
-PASSED: lte(2,b) => NotANumber
-PASSED: gte(3,2) => t
-PASSED: gte(2,3) => ()
-PASSED: gte(a,b) => NotANumber
-PASSED: gte(2,b) => NotANumber
+PASSED: (lt 2 3) => t
+PASSED: (lt 3 2) => ()
+PASSED: (lt a b) => Error: Operand not a number
+PASSED: (lt 2 a) => Error: Operand not a number
+PASSED: (gt 5 2) => t
+PASSED: (gt 2 5) => ()
+PASSED: (gt a b) => Error: Operand not a number
+PASSED: (gt 2 b) => Error: Operand not a number
+PASSED: (lte 2 2) => t
+PASSED: (lte 3 2) => ()
+PASSED: (lte a b) => Error: Operand not a number
+PASSED: (lte 2 b) => Error: Operand not a number
+PASSED: (gte 3 2) => t
+PASSED: (gte 2 3) => ()
+PASSED: (gte a b) => Error: Operand not a number
+PASSED: (gte 2 b) => Error: Operand not a number
 --- equality ---
-PASSED: eq(2,2) => t
-FAILED: eq(2,2.5) => got TypeMismatch, expected ()  
-PASSED: eq(a,a) => t
-PASSED: eq(a,b) => ()
-PASSED: eq("hi","hi") => t
-FAILED: eq((1 2 3),(1 2 3)) => got ListEquality, expected t
+PASSED: (eq 2 2) => t
+PASSED: (eq 2 2.5) => ()
+PASSED: (eq a a) => t
+PASSED: (eq a b) => ()
+PASSED: (eq "hi" "hi") => t
+PASSED: (eq (1 2 3) (1 2 3)) => Error: eq called on lists
 --- logical ---
-PASSED: not(nil) => t
-PASSED: not(t) => ()
+PASSED: (not ()) => t
+PASSED: (not t) => ()
+=== Sprint 5 Tests ===
+PASSED: (set x 42) => 42
+PASSED: x => 42
+PASSED: (set y "hello") => "hello"
+PASSED: y => "hello"
+PASSED: (set x 100) => 100
+PASSED: x => 100
+PASSED: z => z
+PASSED: (set x (add 1 2)) => 3
+PASSED: (add x 4) => 7
+PASSED: (set x "new") => "new"
+PASSED: x => "new"
+PASSED: (set y ()) => ()
+PASSED: y => ()
+PASSED: (set x (add (mul 2 3) (sub 10 4))) => 12
+PASSED: x => 12
+PASSED: (set x (cons 1 (cons 2 ()))) => (1 2)
+PASSED: (car x) => 1
+PASSED: (cdr x) => (2)
+PASSED: (set x (cons y ())) => (())
+PASSED: (set x '(add 2 3)) => (add 2 3)
+FAILED: x => got (add 2 3), expected 5
+=== Sprint 6 Tests ===
+--- short circuiting functions ---
+PASSED: (and (() 't)) => ()
+PASSED: (and ('t 5)) => 5
+FAILED: (and ('t 't ())) => got t, expected ()
+PASSED: (or ('t fail)) => t
+PASSED: (or (() 123)) => 123
+PASSED: (or (() ())) => ()
+FAILED: (or (() () 't)) => got (), expected t
+--- conditionals ---
+PASSED: (if 't 1 2) => 1
+PASSED: (if () 1 2) => 2
+PASSED: (if 't yes no) => yes
+PASSED: (cond ((gt 3 2) "greater") ((lt 3 2) "less")) => "greater"
+PASSED: (cond (() "first") ('t "fallback")) => "fallback"
+PASSED: (cond (() 1) (() 2)) => Error: No selected branch
+PASSED: (cond ((and () skip) 1) ((or 't noskip) 2)) => 2
+PASSED: (and (if () 't ()) 't) => ()
+PASSED: (cond ((and 't ()) none) ((or () 't) matched)) => matched
+PASSED: (cond ('t "should print") (() "should not print")) => "should print"
+=== Sprint 7 Tests ===
+--- simple function ---
+PASSED: (define square (x) (mul x x)) => square
+PASSED: (square 5) => 25
+PASSED: (square "a") => Error: Operand not a number
+--- multiple arguments ---
+PASSED: (define addTwo (a b) (add a b)) => addTwo
+PASSED: (addTwo 3 4) => 7
+PASSED: (addTwo 3) => Error: Argument count mismatch
+PASSED: (addTwo 3 4 5) => Error: Argument count mismatch
+--- nested calls ---
+PASSED: (define sumSquare (x y) (add (square x) (square y))) => sumSquare
+PASSED: (sumSquare 2 3) => 13
+--- factorial function ---
+PASSED: (define fact (n) (if (lte n 1) 1 (mul n (fact (sub n 1))))) => fact
+PASSED: (fact 5) => 120
+PASSED: (fact 0) => 1
+=== Sprint 8 Tests: Lambda Functions ===
+--- lambda call ---
+PASSED: ((lambda (x) (add x 1)) 5) => 6
+PASSED: ((lambda () 42)) => 42
+--- assign to variable ---
+PASSED: (define inc (lambda (x) (add x 1))) => inc
+PASSED: (inc 10) => 11
+--- multiple arguments ---
+PASSED: ((lambda (a b) (mul a b)) 3 4) => 12
+PASSED: ((lambda (x y) (add x y)) 3) => Error: Argument count mismatch
+PASSED: ((lambda (x) (add x y)) 3) => Error: Operand not a number
+PASSED: ((lambda (x) (div x 0)) 5) => Error: Divide by zero
+--- nested lambda ---
+PASSED: ((lambda (f x) (f x)) (lambda (y) (mul y 2)) 5) => 10

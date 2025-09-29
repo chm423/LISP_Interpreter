@@ -20,6 +20,7 @@ typedef struct Atom {
     } value;
 } Atom;
 
+struct SExp;
 
 /* struct for cons cell:
         building block of lists
@@ -31,7 +32,7 @@ typedef struct ConsCell {
     struct SExp* cdr; // tail ptr
 } ConsCell;
 
-struct SExp;
+
 
 typedef struct Lambda {
     struct SExp* params; // parameter list
@@ -66,57 +67,6 @@ typedef struct Env {
 } Env;
 
 Env* globalEnv = NULL;
-/* create new cons cell with supplied head and tail */
-SExp *cons(SExp* car, SExp* cdr) {
-    SExp* cell = malloc(sizeof(SExp)); 
-    if (cell == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        exit(EXIT_FAILURE);
-    }
-    cell->type = SEXP_LIST;
-    cell->data.cons.car = car;
-    cell->data.cons.cdr = cdr;
-    return cell;
-}
-
-/* returns the car (head) of list */
-SExp *car(SExp* list) {
-    // if atom, return nil
-    if (list->type != SEXP_LIST) {
-        printf("Error: car called on Atom\n");
-        return &nil;
-    }
-    if (list == &nil) {
-        return &nil;
-    }
-    return list->data.cons.car;
-}
-
-/* returns the cdr (tail) of list */
-SExp *cdr(SExp* list) {
-    // if atom, return nil
-    if (list->type != SEXP_LIST) {
-        printf("Error: cdr called on Atom\n");
-        return &nil;
-    }
-    if (list == &nil) {
-        return &nil;
-    }
-    return list->data.cons.cdr;
-}
-
-// second element in list
-SExp* cadr(SExp* x) {
-    return car(cdr(x));
-}
-// third element
-SExp* caddr(SExp* x) {
-    return car(cdr(cdr(x)));
-}
-// fourth element
-SExp* cadddr(SExp* x) {
-    return car(cdr(cdr(cdr(x))));
-}
 
 /* constructor functions */
 SExp* makeLong(long value) {
@@ -148,10 +98,71 @@ SExp* makeSymbol(const char* value) {
     return atom;
 }
 
+
+/* create new cons cell with supplied head and tail */
+SExp *cons(SExp* car, SExp* cdr) {
+    SExp* cell = malloc(sizeof(SExp)); 
+    if (cell == NULL) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+    cell->type = SEXP_LIST;
+    cell->data.cons.car = car;
+    cell->data.cons.cdr = cdr;
+    return cell;
+}
+
+/* returns the car (head) of list */
+SExp *car(SExp* list) {
+    // if atom, return nil
+    if (list->type != SEXP_LIST) {
+        printf("Error: car called on Atom\n");
+        return &nil;
+    }
+    if (list == &nil) {
+        return &nil;
+    }
+    return list->data.cons.car;
+}
+
+/* returns the cdr (tail) of list */
+SExp *cdr(SExp* list) {
+    // if atom, return nil
+    if (list->type != SEXP_LIST) {
+        return makeSymbol("Error: cdr called on Atom");
+    }
+    if (list == &nil) {
+        return &nil;
+    }
+    return list->data.cons.cdr;
+}
+
+// second element in list
+SExp* cadr(SExp* x) {
+    return car(cdr(x));
+}
+// third element
+SExp* caddr(SExp* x) {
+    return car(cdr(cdr(x)));
+}
+// fourth element
+SExp* cadddr(SExp* x) {
+    return car(cdr(cdr(cdr(x))));
+}
+
+
+
 // skip spaces when reading input
 void skipWhitespace(char** input) {
     while (**input && isspace(**input)) {
         (*input)++;
+    }
+}
+// remove comments from input string
+void stripComment (char* line) {
+    char* commentStart = strchr(line, ';'); // find first semicolon
+    if (commentStart) {
+        *commentStart = '\0'; // terminate string at comment start
     }
 }
 
@@ -180,8 +191,7 @@ SExp* parseAtom(char**input) {
                 // printf("[DEBUG] Parsed string: \"%s\"\n", string); // Debug message
             return atom;
         } else {
-            printf("Error: Unterminated string\n");
-            return &nil; 
+            return makeSymbol("Error: Unterminated string"); 
         }
     }
 
@@ -253,8 +263,7 @@ SExp* readSExpHelper(char** input) {
         return parseList(input);
     }
     else if (**input == ')') {
-        printf("Error: Unexpected ')'\n");
-        return &nil;
+        return makeSymbol("Error: Unexpected ')'");
     }
     else {
         return parseAtom(input);
@@ -437,67 +446,67 @@ bool getNumber(SExp* sexp, double* out) {
 // add
 SExp* add(SExp* a, SExp* b){
     double x,y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     double result = x + y;
     return (result == (long)result) ? makeLong((long)result) : makeDouble(result);
 }
 // subtract
 SExp* sub(SExp* a, SExp* b){
     double x,y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     double result = x - y;
     return (result == (long)result) ? makeLong((long)result) : makeDouble(result);
 }
 // multiply
 SExp* mul(SExp* a, SExp* b){
     double x,y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     double result = x * y;
     return (result == (long)result) ? makeLong((long)result) : makeDouble(result);
 }
 // divide (returns error if divide by 0)
 SExp* divide(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
-    if (y == 0) return sexp("DivideByZero");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
+    if (y == 0) return makeSymbol("Error: Divide by zero");
     double result = x / y;
     return (result == (long)result) ? makeLong((long)result) : makeDouble(result);
 }
 // modulo (only for long) (returns error if divide by 0)
 SExp* mod(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
-    if ((long)y == 0) return sexp("DivideByZero");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
+    if ((long)y == 0) return makeSymbol("Error: Divide by zero");
     double result = (long)x % (long)y;
     return makeLong((long)result);
 }
 // less than
 SExp* lt(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     return (x < y) ? &truth : &nil;
 }
 // greater than
 SExp* gt(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     return (x > y) ? &truth : &nil;
 }
 // lte
 SExp* lte(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     return (x <= y) ? &truth : &nil;
 }
 // gte
 SExp* gte(SExp* a, SExp* b){
     double x, y;
-    if (!getNumber(a, &x) || !getNumber(b, &y)) return sexp("NotANumber");
+    if (!getNumber(a, &x) || !getNumber(b, &y)) return makeSymbol("Error: Operand not a number");
     return (x >= y) ? &truth : &nil;
 }
 // equality function: considers any atom type
 SExp* eq(SExp* a, SExp* b){
-    if (a->type != b->type) return sexp("TypeMismatch"); // different types
+    if (a->type != b->type) return makeSymbol("Error: Type mismatch"); // different types
     if (a->type == SEXP_ATOM) {
         // both atoms, check atom type
 
@@ -511,7 +520,7 @@ SExp* eq(SExp* a, SExp* b){
         }
 
 
-        if (a->data.atom.type != b->data.atom.type) return sexp("TypeMismatch"); // different atom types
+        if (a->data.atom.type != b->data.atom.type) return makeSymbol("Error: Type mismatch"); // different atom types
         switch (a->data.atom.type) {
             case ATOM_LONG:
                 return (a->data.atom.value.long_value == b->data.atom.value.long_value) ? &truth : &nil;
@@ -524,7 +533,7 @@ SExp* eq(SExp* a, SExp* b){
         }
     }
     else if (a->type == SEXP_LIST) {
-        return sexp("ListEquality");
+        return makeSymbol("Error: eq called on lists");
     }
     return &nil; // fallback
 }
@@ -560,6 +569,15 @@ Env* consEnv(SExp* params, SExp* args, Env* parent) {
     e->values = args;
     e->parent = parent;
     return e;
+}
+// helper to get length of list (for argument matching)
+int listLength (SExp* list) {
+    int count = 0;
+    while (list != &nil) {
+        count++;
+        list = cdr(list);
+    }
+    return count;
 }
 SExp* reverseList(SExp* list){
     SExp* result = &nil;
@@ -632,16 +650,26 @@ SExp* eval (SExp* sexp, Env* env) {
             }
             if (strcmp(fname, "define") == 0) {
                 SExp* name = car(args);
-                SExp* params = cadr(args);
-                SExp* body = caddr(args);
+                SExp* value = cadr(args);
+                SExp* func = NULL;
 
-                SExp* func = malloc(sizeof(SExp));
-                func->type = SEXP_LAMBDA;
-                func->data.func.params = params;
-                func->data.func.body = body;
-                func->data.func.env = env;
+                if (value->type == SEXP_LIST && car(value)->type == SEXP_ATOM && strcmp(car(value)->data.atom.value.symbol_value, "lambda") == 0) {
+                    func = eval(value, env);
+                }
+                else {
+                    SExp* params = cadr(args);
+                    SExp* body = caddr(args);
 
-                return set(name, func, env);
+                    func = malloc(sizeof(SExp));
+                    func->type = SEXP_LAMBDA;
+                    func->data.func.params = params;
+                    func->data.func.body = body;
+                    func->data.func.env = env;
+                }
+
+                set(name, func, env);
+
+                return name;
             }
             if (strcmp(fname, "lambda") == 0) {
                 SExp* params = car(args);
@@ -701,7 +729,7 @@ SExp* eval (SExp* sexp, Env* env) {
                     }
                     clause = cdr(clause); // else go to next pair
                 }
-                return makeSymbol("NoSelectedBranch"); // no clause matched
+                return makeSymbol("Error: No selected branch"); // no clause matched
             }
 
             // other built-in functions
@@ -758,6 +786,14 @@ SExp* eval (SExp* sexp, Env* env) {
         SExp* op = eval(func, env);
 
         if (op->type == SEXP_LAMBDA) {
+            // check arg count
+            int expected = listLength(op->data.func.params);
+            int given = listLength(args);
+
+            if (expected != given) {
+                return makeSymbol("Error: Argument count mismatch");
+            }
+
             // eval args
             SExp* evaluatedArgs = &nil;
             SExp* formalParams = op->data.func.params;
@@ -791,15 +827,29 @@ SExp* evalString(const char* input) {
     SExp* result = eval(expr, globalEnv);   // evaluate the S-expression
     return result;
 }
-void assertTest(const char* testName, SExp* actual, const char* expected) {
+void assertTest(FILE *file, const char* testName, SExp* actual, const char* expected) {
     char* got = sexpToString(actual);
     if (strcmp(got, expected) == 0) {
-        printf("PASSED: %s => %s\n", testName, got);
+        fprintf(file, "PASSED: %s => %s\n", testName, got);
     } else {
-        printf("FAILED: %s => got %s, expected %s\n", testName, got, expected);
+        fprintf(file, "FAILED: %s => got %s, expected %s\n", testName, got, expected);
     }
 }
-void runTests(int sprintNum) {
+
+void runTests(const char* fileName) {
+    FILE *file = fopen(fileName, "w");
+    if (!file) {
+        perror("Failed to open file");
+        return;
+    }
+
+    if (!globalEnv) {
+        globalEnv = malloc(sizeof(Env));
+        globalEnv->symbols = &nil;
+        globalEnv->values = &nil;
+        globalEnv->parent = NULL;
+    }
+
     SExp* two = makeLong(2);
     SExp* three = makeLong(3);
     SExp* four = makeLong(4);
@@ -807,268 +857,331 @@ void runTests(int sprintNum) {
     SExp* ten = makeLong(10);
     SExp* point5 = makeDouble(2.5);
 
-    if (sprintNum == 1) {
-        // Sprint 1
-        printf("=== Sprint 1 Tests ===\n");
+    // Sprint 1
+    fprintf(file, "=== Sprint 1 Tests ===\n");
 
-        // nil
-        printf("--- nil check ---\n");
-        assertTest("nilp( () )", nilp(&nil), "t");
-        assertTest("nilp(5)", nilp(makeLong(5)), "()");
+    // nil
+    fprintf(file, "--- nil check ---\n");
+    assertTest(file, "(nil? ())", nilp(&nil), "t");
+    assertTest(file, "(nil? 5)", nilp(makeLong(5)), "()");
+    assertTest(file, "(nil? (nilp()))", nilp(nilp(&nil) ? &truth : &nil), "()");
 
-        // numbers
-        printf("--- number check ---\n");
-        assertTest("numberp(123)", numberp(makeLong(123)), "t");
-        assertTest("numberp(3.14)", numberp(makeDouble(3.14)), "t");
-        assertTest("numberp(x)", numberp(makeSymbol("x")), "()");
+    // numbers
+    fprintf(file, "--- number check ---\n");
+    assertTest(file, "(number? 123)", numberp(sexp("123")), "t");
+    assertTest(file, "(number? 3.14)", numberp(sexp("3.14")), "t");
+    assertTest(file, "(number? x)", numberp(sexp("x")), "()");
+    assertTest(file, "(number? 9223372036854775807)", numberp(sexp("9223372036854775807")), "t");
+    assertTest(file, "(number? -42)", numberp(makeLong(-42)), "t");
 
-        // symbols
-        printf("--- symbol check ---\n");
-        assertTest("symbolp(x)", symbolp(makeSymbol("x")), "t");
-        assertTest("symbolp(\"hi\")", symbolp(makeString("hi")), "()");
+    // symbols
+    fprintf(file, "--- symbol check ---\n");
+    assertTest(file, "(symbol? x)", symbolp(sexp("x")), "t");
+    assertTest(file, "(symbol? \"hi\")", symbolp(sexp("\"hi\"")), "()");
+    assertTest(file, "(symbol? \"\")", symbolp(sexp("\"\"")), "()");
+    assertTest(file, "(symbol? @#$)", symbolp(sexp("@#$")), "t");
 
-        // strings
-        printf("--- string check ---\n");
-        assertTest("stringp(\"hello\")", stringp(makeString("hello")), "t");
-        assertTest("stringp(42)", stringp(makeLong(42)), "()");
+    // strings
+    fprintf(file, "--- string check ---\n");
+    assertTest(file, "(string? \"hello\")", stringp(sexp("\"hello\"")), "t");
+    assertTest(file, "(string? 42)", stringp(sexp("42")), "()");
+    assertTest(file, "(string? \"\")", stringp(sexp("\"\"")), "t");
+    assertTest(file, "(string? \"\\n\")", stringp(sexp("\"\\n\"")), "t");
 
-        // lists
-        printf("--- list check ---\n");
-        assertTest("listp( () )", listp(&nil), "t");
-        assertTest("listp(cons(1, ()))", listp(cons(makeLong(1), &nil)), "t");
-        assertTest("listp(symbol)", listp(makeSymbol("y")), "()");
+    // lists
+    fprintf(file, "--- list check ---\n");
+    assertTest(file, "(list? ())", listp(&nil), "t");
+    assertTest(file, "(list? (cons 1 ()))", listp(cons(makeLong(1), &nil)), "t");
+    assertTest(file, "(list? y)", listp(makeSymbol("y")), "()");
+    assertTest(file, "(list? (()))", listp(cons(&nil, &nil)), "t");
 
-        // bools
-        printf("--- bool check ---\n");
-        assertTest("sexpToBool(())", sexpToBool(&nil) ? &truth : &nil, "()");
-        assertTest("sexpToBool(cons(1, ()))", sexpToBool(cons(makeLong(1), &nil)) ? &truth : &nil, "t");
-        assertTest("sexpToBool(5)", sexpToBool(makeLong(5)) ? &truth : &nil, "t");
+    // bools
+    fprintf(file, "--- bool check ---\n");
+    assertTest(file, "(sexpToBool ())", sexpToBool(&nil) ? &truth : &nil, "()");
+    assertTest(file, "(sexpToBool (cons 1 ()))", sexpToBool(cons(makeLong(1), &nil)) ? &truth : &nil, "t");
+    assertTest(file, "(sexpToBool 5)", sexpToBool(five) ? &truth : &nil, "t");
 
-        // cons, car, cdr
-        printf("--- cons cells, car, cdr ---\n");
-        SExp* lst = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
-        assertTest("cons(a,(b))", lst, "(a b)");
-        assertTest("car((a b))", car(lst), "a");
-        assertTest("cdr((a b))", cdr(lst), "(b)");
+    // cons, car, cdr
+    fprintf(file, "--- cons cells, car, cdr ---\n");
+    SExp* lst = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
+    assertTest(file, "(cons a (b))", lst, "(a b)");
+    assertTest(file, "(car (a b))", car(lst), "a");
+    assertTest(file, "(cdr (a b))", cdr(lst), "(b)");
+        assertTest(file, "(car ((1 2) 3))", car(cons(cons(makeLong(1), cons(two, &nil)), cons(three, &nil))), "(1 2)");
 
-        // dotted pair
-        printf("--- dotted pairs ---\n");
-        SExp* dotted = cons(makeSymbol("x"), makeSymbol("y"));
-        assertTest("cons(x,y)", dotted, "(x . y)");
-        assertTest("cdr(a . b)", cdr(sexp("(a . b)")), "b");
+    // dotted pair
+    fprintf(file, "--- dotted pairs ---\n");
+    SExp* dotted = cons(makeSymbol("x"), makeSymbol("y"));
+    assertTest(file, "(cons x y)", dotted, "(x . y)");
+    assertTest(file, "(cdr (a . b))", cdr(sexp("(a . b)")), "b");
 
-        // nested list
-        printf("--- nested list ---\n");
-        SExp* nested = cons(makeSymbol("a"), cons(cons(makeLong(1), cons(makeLong(2), &nil)), &nil));
-        assertTest("nested list (a (1 2))", nested, "(a (1 2))");
+    // nested list
+    fprintf(file, "--- nested list ---\n");
+    SExp* nested = cons(makeSymbol("a"), cons(cons(makeLong(1), cons(makeLong(2), &nil)), &nil));
+    assertTest(file, "(a (1 2))", nested, "(a (1 2))");
 
-        // sexp constuctor
-        printf("--- sexp constructor ---\n");
-        assertTest("sexp(\"42\")", sexp("42"), "42");
-        assertTest("sexp(\"3.14\")", sexp("3.14"), "3.140000");
-        assertTest("sexp(\"hello\")", sexp("hello"), "hello");
-        assertTest("sexp(\"\\\"hi\\\"\")", sexp("\"hi\""), "\"hi\"");
-        assertTest("sexp(\"(a b c)\")", sexp("(a b c)"), "(a b c)");
-        assertTest("sexp(\"(1 (2 3) 4)\")", sexp("(1 (2 3) 4)"), "(1 (2 3) 4)");
-        assertTest("sexp(\"(a . b)\")", sexp("(a . b)"), "(a . b)");
+    // sexp constructor
+    fprintf(file, "--- sexp constructor ---\n");
+    assertTest(file, "(sexp \"42\")", sexp("42"), "42");
+    assertTest(file, "(sexp \"3.14\")", sexp("3.14"), "3.140000");
+    assertTest(file, "(sexp \"hello\")", sexp("hello"), "hello");
+    assertTest(file, "(sexp \"\\\"hi\\\"\")", sexp("\"hi\""), "\"hi\"");
+    assertTest(file, "(sexp \"(a b c)\")", sexp("(a b c)"), "(a b c)");
+    assertTest(file, "(sexp \"(1 (2 3) 4)\")", sexp("(1 (2 3) 4)"), "(1 (2 3) 4)");
+    assertTest(file, "(sexp \"(a . b)\")", sexp("(a . b)"), "(a . b)");
+
+    // Sprint 2
+    fprintf(file, "=== Sprint 2 Tests ===\n");
+    // car
+    fprintf(file, "--- car ---\n");
+    SExp* abList = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
+    assertTest(file, "(car (a b))", car(abList), "a");
+    assertTest(file, "(car (5))", car(cons(makeLong(5), &nil)), "5");
+    assertTest(file, "(car ())", car(&nil), "()");
+
+    // cdr
+    fprintf(file, "--- cdr ---\n");
+    assertTest(file, "(cdr (a b))", cdr(abList), "(b)");
+    assertTest(file, "(cdr (a))", cdr(cons(makeSymbol("a"), &nil)), "()");
+    assertTest(file, "(cdr ())", cdr(&nil), "()");
+
+    // Sprint 3
+    fprintf(file, "=== Sprint 3 Tests ===\n");
+    fprintf(file, "--- arithmetic ---\n");
+    assertTest(file, "(add 2 3)", add(two, three), "5");
+    assertTest(file, "(add 2.5 3)", add(point5, three), "5.500000");
+    assertTest(file, "(add 0.1 0.2)", add(makeDouble(0.1), makeDouble(0.2)), "0.300000");
+    assertTest(file, "(sub 2 5)", sub(two, five), "-3");
+    assertTest(file, "(add 1 \"hi\")", add(makeLong(1), makeString("hi")), "Error: Operand not a number");
+
+    assertTest(file, "(mul 3 4)", mul(three, four), "12");
+    assertTest(file, "(mul 2.5 4)", mul(point5, four), "10");
+
+    assertTest(file, "(divide 10 2)", divide(ten, two), "5");
+    assertTest(file, "(divide 10 4)", divide(ten, four), "2.500000");
+    assertTest(file, "(divide 10 0)", divide(ten, makeLong(0)), "Error: Divide by zero");
+
+    assertTest(file, "(mod 10 3)", mod(ten, three), "1");
+    assertTest(file, "(mod 10 5)", mod(ten, five), "0");
+    assertTest(file, "(mod 10 0)", mod(ten, makeLong(0)), "Error: Divide by zero");
+
+    fprintf(file, "--- comparison ---\n");
+    assertTest(file, "(lt 2 3)", lt(two, three), "t");
+    assertTest(file, "(lt 3 2)", lt(three, two), "()");
+    assertTest(file, "(lt a b)", lt(makeSymbol("a"), makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(lt 2 a)", lt(two, makeSymbol("a")), "Error: Operand not a number");
+    assertTest(file, "(gt 5 2)", gt(five, two), "t");
+    assertTest(file, "(gt 2 5)", gt(two, five), "()");
+    assertTest(file, "(gt a b)", gt(makeSymbol("a"), makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(gt 2 b)", gt(two, makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(lte 2 2)", lte(two, two), "t");
+    assertTest(file, "(lte 3 2)", lte(three, two), "()");
+    assertTest(file, "(lte a b)", lte(makeSymbol("a"), makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(lte 2 b)", lte(two, makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(gte 3 2)", gte(three, two), "t");
+    assertTest(file, "(gte 2 3)", gte(two, three), "()");
+    assertTest(file, "(gte a b)", gte(makeSymbol("a"), makeSymbol("b")), "Error: Operand not a number");
+    assertTest(file, "(gte 2 b)", gte(two, makeSymbol("b")), "Error: Operand not a number");
+
+    fprintf(file, "--- equality ---\n");
+    assertTest(file, "(eq 2 2)", eq(two, makeLong(2)), "t");
+    assertTest(file, "(eq 2 2.5)", eq(two, point5), "()");
+    assertTest(file, "(eq a a)", eq(makeSymbol("a"), makeSymbol("a")), "t");
+    assertTest(file, "(eq a b)", eq(makeSymbol("a"), makeSymbol("b")), "()");
+    assertTest(file, "(eq \"hi\" \"hi\")", eq(makeString("hi"), makeString("hi")), "t");
+
+    SExp* list1 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
+    SExp* list2 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
+    assertTest(file, "(eq (1 2 3) (1 2 3))", eq(list1, list2), "Error: eq called on lists");
+
+    fprintf(file, "--- logical ---\n");
+    assertTest(file, "(not ())", notf(&nil), "t");
+    assertTest(file, "(not t)", notf(&truth), "()");
+
+    // Sprint 5: set, lookup, arithmetic
+    fprintf(file, "=== Sprint 5 Tests ===\n");
+    assertTest(file, "(set x 42)", evalString("(set x 42)"), "42");
+    assertTest(file, "x", evalString("x"), "42");
+    assertTest(file, "(set y \"hello\")", evalString("(set y \"hello\")"), "\"hello\"");
+    assertTest(file, "y", evalString("y"), "\"hello\"");
+    assertTest(file, "(set x 100)", evalString("(set x 100)"), "100");
+    assertTest(file, "x", evalString("x"), "100");
+    assertTest(file, "z", evalString("z"), "z");
+    assertTest(file, "(set x (add 1 2))", evalString("(set x (add 1 2))"), "3");
+    assertTest(file, "(add x 4)", evalString("(add x 4)"), "7");
+    assertTest(file, "(set x \"new\")", evalString("(set x \"new\")"), "\"new\"");
+    assertTest(file, "x", evalString("x"), "\"new\"");
+    assertTest(file, "(set y ())", evalString("(set y ())"), "()");
+    assertTest(file, "y", evalString("y"), "()");
+
+    assertTest(file, "(set x (add (mul 2 3) (sub 10 4)))", evalString("(set x (add (mul 2 3) (sub 10 4)))"), "12");
+    assertTest(file, "x", evalString("x"), "12");
+    assertTest(file, "(set x (cons 1 (cons 2 ())))", evalString("(set x (cons 1 (cons 2 ())))"), "(1 2)");
+    assertTest(file, "(car x)", evalString("(car x)"), "1");
+    assertTest(file, "(cdr x)", evalString("(cdr x)"), "(2)");
+    assertTest(file, "(set x (cons y ()))", evalString("(set x (cons y ()))"), "(())");
+    assertTest(file, "(set x '(add 2 3))", evalString("(set x '(add 2 3))"), "(add 2 3)");
+    assertTest(file, "x", evalString("x"), "5");
+
+    // Sprint 6: logical short-circuit, if, cond
+    fprintf(file, "=== Sprint 6 Tests ===\n");
+    fprintf(file, "--- short circuiting functions ---\n");
+    assertTest(file, "(and (() 't))", evalString("(and () 't)"), "()");
+    assertTest(file, "(and ('t 5))", evalString("(and 't 5)"), "5");
+    assertTest(file, "(and ('t 't ()))", evalString("(and 't 't ())"), "()");
+    assertTest(file, "(or ('t fail))", evalString("(or 't fail)"), "t");
+    assertTest(file, "(or (() 123))", evalString("(or () 123)"), "123");
+    assertTest(file, "(or (() ()))", evalString("(or () ())"), "()");
+    assertTest(file, "(or (() () 't))", evalString("(or () () 't)"), "t");
+    fprintf(file, "--- conditionals ---\n");
+    assertTest(file, "(if 't 1 2)", evalString("(if 't 1 2)"), "1");
+    assertTest(file, "(if () 1 2)", evalString("(if () 1 2)"), "2");
+    assertTest(file, "(if 't yes no)", evalString("(if 't yes no)"), "yes");
+    assertTest(file, "(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))", evalString("(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))"), "\"greater\"");
+    assertTest(file, "(cond (() \"first\") ('t \"fallback\"))", evalString("(cond (() \"first\") ('t \"fallback\"))"), "\"fallback\"");
+    assertTest(file, "(cond (() 1) (() 2))", evalString("(cond (() 1) (() 2))"), "Error: No selected branch");
+    assertTest(file, "(cond ((and () skip) 1) ((or 't noskip) 2))", evalString("(cond ((and () skip) 1) ((or 't noskip) 2))"), "2");
+    assertTest(file, "(and (if () 't ()) 't)", evalString("(and (if () 't ()) 't)"), "()");
+    assertTest(file, "(cond ((and 't ()) none) ((or () 't) matched))", evalString("(cond ((and 't ()) none) ((or () 't) matched))"), "matched");
+    assertTest(file, "(cond ('t \"should print\") (() \"should not print\"))", evalString("(cond ('t \"should print\") (() \"should not print\"))"), "\"should print\"");
+
+    fprintf(file, "=== Sprint 7 Tests ===\n");
+
+    fprintf(file, "--- simple function ---\n");
+    assertTest(file, "(define square (x) (mul x x))", evalString("(define square (x) (mul x x))"), "square");
+    assertTest(file, "(square 5)", evalString("(square 5)"), "25");
+    assertTest(file, "(square \"a\")", evalString("(square \"a\")"), "Error: Operand not a number");
+
+    fprintf(file, "--- multiple arguments ---\n");
+    assertTest(file, "(define addTwo (a b) (add a b))", evalString("(define addTwo (a b) (add a b))"), "addTwo");
+    assertTest(file, "(addTwo 3 4)", evalString("(addTwo 3 4)"), "7");
+    assertTest(file, "(addTwo 3)", evalString("(addTwo 3)"), "Error: Argument count mismatch"); 
+    assertTest(file, "(addTwo 3 4 5)", evalString("(addTwo 3 4 5)"), "Error: Argument count mismatch");
+
+    fprintf(file, "--- nested calls ---\n");
+    assertTest(file, "(define sumSquare (x y) (add (square x) (square y)))", evalString("(define sumSquare (x y) (add (square x) (square y)))"), "sumSquare");
+    assertTest(file, "(sumSquare 2 3)", evalString("(sumSquare 2 3)"), "13");
+
+    fprintf(file, "--- factorial function ---\n");
+    assertTest(file, "(define fact (n) (if (lte n 1) 1 (mul n (fact (sub n 1)))))", evalString("(define fact (n) (if (lte n 1) 1 (mul n (fact (sub n 1)))))"), "fact");
+    assertTest(file, "(fact 5)", evalString("(fact 5)"), "120");
+    assertTest(file, "(fact 0)", evalString("(fact 0)"), "1");
+
+    fprintf(file, "=== Sprint 8 Tests: Lambda Functions ===\n");
+
+    fprintf(file, "--- lambda call ---\n");
+    assertTest(file, "((lambda (x) (add x 1)) 5)", evalString("((lambda (x) (add x 1)) 5)"), "6");
+    assertTest(file, "((lambda () 42))", evalString("((lambda () 42))"), "42");
+
+
+    fprintf(file, "--- assign to variable ---\n");
+    assertTest(file, "(define inc (lambda (x) (add x 1)))", evalString("(define inc (lambda (x) (add x 1)))"), "inc");
+    assertTest(file, "(inc 10)", evalString("(inc 10)"), "11");
+
+    fprintf(file, "--- multiple arguments ---\n");
+    assertTest(file, "((lambda (a b) (mul a b)) 3 4)", evalString("((lambda (a b) (mul a b)) 3 4)"), "12");
+    assertTest(file, "((lambda (x y) (add x y)) 3)", evalString("((lambda (x y) (add x y)) 3)"), "Error: Argument count mismatch");
+    assertTest(file, "((lambda (x) (add x y)) 3)", evalString("((lambda (x) (add x y)) 3)"), "Error: Operand not a number"); // y is undefined
+    assertTest(file, "((lambda (x) (div x 0)) 5)", evalString("((lambda (x) (div x 0)) 5)"), "Error: Divide by zero"); 
+
+    fprintf(file, "--- nested lambda ---\n");
+    assertTest(file, "((lambda (f x) (f x)) (lambda (y) (mul y 2)) 5)", evalString("((lambda (f x) (f x)) (lambda (y) (mul y 2)) 5)"), "10");
+    
+    fclose(file);
+}
+
+
+// helper to read expression from file/stdin, handles multi-line input
+char* readExpression(FILE *in) {
+    static char buffer[1024];
+    buffer[0] = '\0';
+
+    int parens = 0;
+    char line[256];
+    while (fgets(line, sizeof(line), in)) {
+        stripComment(line);
+        strncat (buffer, line, sizeof(buffer) - strlen(buffer) - 1);
+
+        // count parentheses
+        for (int i = 0; line[i] != '\0'; i++) {
+            if (line[i] == '(') parens++;
+            else if (line[i] == ')') parens--;
+        }
+
+        if (parens <= 0 && buffer[0] != '\0') {
+            return buffer;
+        }
     }
-    else if (sprintNum == 2){
-        // Sprint 2
-        printf("=== Sprint 2 Tests ===\n");
-        // car
-        printf("--- car ---\n");
-        SExp* abList = cons(makeSymbol("a"), cons(makeSymbol("b"), &nil));
-        assertTest("car((a b))", car(abList), "a");
-        assertTest("car((5))", car(cons(makeLong(5), &nil)), "5");
-        assertTest("car( () )", car(&nil), "()");
+    return NULL; // EOF
+}
 
-        // cdr
-        printf("--- cdr ---\n");
-        assertTest("cdr((a b))", cdr(abList), "(b)");
-        assertTest("cdr((a))", cdr(cons(makeSymbol("a"), &nil)), "()");
-        assertTest("cdr( () )", cdr(&nil), "()");
+// read file and eval each expression
+void readFile(const char* filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Failed to open file");
+        return;
     }
-    else if (sprintNum == 3){
-        // Sprint 3
-        printf("=== Sprint 3 Tests ===\n");
 
-        // arithmetic
-        printf("--- arithmetic ---\n");
-        assertTest("add(2,3)", add(two, three), "5");
-        assertTest("add(2.5,3)", add(point5, three), "5.500000");
-
-        assertTest("sub(10,4)", sub(ten, four), "6");
-        assertTest("sub(10,2.5)", sub(ten, point5), "7.500000");
-
-        assertTest("mul(3,4)", mul(three, four), "12");
-        assertTest("mul(2.5,4)", mul(point5, four), "10");
-
-        assertTest("divide(10,2)", divide(ten, two), "5");
-        assertTest("divide(10,4)", divide(ten, four), "2.500000");
-        assertTest("divide(10,0)", divide(ten, makeLong(0)), "DivideByZero");
-
-        assertTest("mod(10,3)", mod(ten, three), "1");
-        assertTest("mod(10,5)", mod(ten, five), "0");
-        assertTest("mod(10,0)", mod(ten, makeLong(0)), "DivideByZero");
-
-        // comparison
-        printf("--- comparison ---\n");
-        assertTest("lt(2,3)", lt(two, three), "t");
-        assertTest("lt(3,2)", lt(three, two), "()");
-        assertTest("lt(a,b)", lt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-        assertTest("lt(2,a)", lt(two, makeSymbol("a")), "NotANumber");
-
-        assertTest("gt(5,2)", gt(five, two), "t");
-        assertTest("gt(2,5)", gt(two, five), "()");
-        assertTest("gt(a,b)", gt(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-        assertTest("gt(2,b)", gt(two, makeSymbol("b")), "NotANumber");
-
-        assertTest("lte(2,2)", lte(two, two), "t");
-        assertTest("lte(3,2)", lte(three, two), "()");
-        assertTest("lte(a,b)", lte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-        assertTest("lte(2,b)", lte(two, makeSymbol("b")), "NotANumber");
-
-        assertTest("gte(3,2)", gte(three, two), "t");
-        assertTest("gte(2,3)", gte(two, three), "()");
-        assertTest("gte(a,b)", gte(makeSymbol("a"), makeSymbol("b")), "NotANumber");
-        assertTest("gte(2,b)", gte(two, makeSymbol("b")), "NotANumber");
-
-        // equality
-        printf("--- equality ---\n");
-        assertTest("eq(2,2)", eq(two, makeLong(2)), "t");
-        assertTest("eq(2,2.5)", eq(two, point5), "()");
-        assertTest("eq(a,a)", eq(makeSymbol("a"), makeSymbol("a")), "t");
-        assertTest("eq(a,b)", eq(makeSymbol("a"), makeSymbol("b")), "()");
-        assertTest("eq(\"hi\",\"hi\")", eq(makeString("hi"), makeString("hi")), "t");
-
-        SExp* list1 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
-        SExp* list2 = cons(makeLong(1), cons(makeLong(2), cons(makeLong(3), &nil)));
-        assertTest("eq((1 2 3),(1 2 3))", eq(list1, list2), "t");
-
-        // logical
-        printf("--- logical ---\n");
-        assertTest("not(nil)", notf(&nil), "t");
-        assertTest("not(t)", notf(&truth), "()");
+    if (!globalEnv) {
+        globalEnv = malloc(sizeof(Env));
+        globalEnv->symbols = &nil;
+        globalEnv->values = &nil;
+        globalEnv->parent = NULL;
     }
-    else if (sprintNum == 4) {
-        // sprint 4 was submitting 1-3
-        runTests(1);
-        runTests(2);
-        runTests(3);
+
+    char* expr;
+    while ((expr = readExpression(file)) != NULL) {
+        SExp* sexpInput = sexp(expr);
+        SExp* result = eval(sexpInput, globalEnv);
+        printf("%s\n", sexpToString(result));
     }
-    else if (sprintNum == 5) {
-        printf("=== Sprint 5 Tests ===\n");
-        SExp* x = makeSymbol("x");
-        SExp* y = makeSymbol("y");
-        SExp* val1 = makeLong(42);
-        SExp* val2 = makeString("hello");
+    fclose(file);
+}
 
-        // set and lookup
-        assertTest("(set x 42)", evalString("(set x 42)"), "42"); 
-        assertTest("x", evalString("x"), "42");
+// read from stdin and eval each expression
+void repl() {
+    printf("Type 'exit' to quit.\n");
 
-        assertTest("(set y \"hello\")", evalString("(set y \"hello\")"), "\"hello\"");
-        assertTest("y", evalString("y"), "\"hello\"");
-
-        // overwrite x to 100
-        assertTest("(set x 100)", evalString("(set x 100)"), "100");
-        assertTest("x", evalString("x"), "100");
-
-        // lookup undefined symbol
-        assertTest("z", evalString("z"), "z");
-
-         // nested set and arithmetic
-        assertTest("(set x (add 1 2))", evalString("(set x (add 1 2))"), "3");
-        assertTest("(add x 4)", evalString("(add x 4)"), "7");
-
-        // test overwriting with different types
-        assertTest("(set x \"new\")", evalString("(set x \"new\")"), "\"new\"");
-        assertTest("x", evalString("x"), "\"new\"");
-
-        // test setting to nil
-        assertTest("(set y ())", evalString("(set y ())"), "()");
-        assertTest("y", evalString("y"), "()");
-
-        // test set with complex expression
-        assertTest("(set x (add (mul 2 3) (sub 10 4)))", evalString("(set x (add (mul 2 3) (sub 10 4)))"), "12");
-        assertTest("x", evalString("x"), "12");
-
-        // test nested set within list
-        assertTest("(set x (cons 1 (cons 2 ())))", evalString("(set x (cons 1 (cons 2 ())))"), "(1 2)");
-        assertTest("(car x)", evalString("(car x)"), "1");
-        assertTest("(cdr x)", evalString("(cdr x)"), "(2)");
-
-        // test setting and evaluating symbol as list
-        assertTest("(set x (cons y ()))", evalString("(set x (cons y ()))"), "(())");
-
-        // quoting
-        assertTest("(set x '(add 2 3))", evalString("(set x '(add 2 3))"), "(add 2 3)");
-        assertTest("x", evalString("x"), "6");
+    if (!globalEnv) {
+        globalEnv = malloc(sizeof(Env));
+        globalEnv->symbols = &nil;
+        globalEnv->values = &nil;
+        globalEnv->parent = NULL;
     }
-    else if (sprintNum == 6) {
-        printf("=== Sprint 6 Tests ===\n");
 
-        // and short-circuiting
-        assertTest("and(() fail)", evalString("(and () fail)"), "()");
-        assertTest("and('t 5)", evalString("(and 't 5)"), "5");
-        assertTest("and('t 't 42)", evalString("(and 't 't 42)"), "42");
+    char* expr;
+    while (1) {
+        printf(">"); // main prompt
 
-        // or short-circuiting
-        assertTest("or('t, fail)", evalString("(or 't fail)"), "t");
-        assertTest("or(() ())", evalString("(or () 123)"), "123");
-        assertTest("or(() ())", evalString("(or () ())"), "()");
-        assertTest("or(() () t)", evalString("(or () () 't)"), "t");
+        expr = readExpression(stdin); // read full expression, even multi-line
+        if (!expr) break; // EOF
 
-        // if conditional
-        assertTest("(if 't 1 2)", evalString("(if 't 1 2)"), "1");
-        assertTest("(if () 1 2)", evalString("(if () 1 2)"), "2");
-        assertTest("(if 't yes no)", evalString("(if 't yes no)"), "yes");
+        // check for exit command
+        if (strcmp(expr, "exit\n") == 0) break;
 
-        // cond conditional
-        assertTest("(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))", evalString("(cond ((gt 3 2) \"greater\") ((lt 3 2) \"less\"))"), "\"greater\"");
-        assertTest("(cond (() \"first\") ('t \"fallback\"))", evalString("(cond (() \"first\") ('t \"fallback\"))"), "\"fallback\"");
-        assertTest("(cond (() 1) (() 2))", evalString("(cond (() 1) (() 2))"), "NoSelectedBranch");
+        // parse and evaluate
+        SExp* sexpInput = sexp(expr);
+        SExp* result = eval(sexpInput, globalEnv);
 
-        assertTest("(cond ((and () skip) 1) ((or 't noskip) 2))", evalString("(cond ((and () skip) 1) ((or 't noskip) 2))"), "2");
-
-        // nested expressions
-        assertTest("(and (if () 't ()) 't)", evalString("(and (if () 't ()) 't)"), "()");
-        assertTest("(cond ((and 't () ) none) ((or () 't) matched))", evalString("(cond ((and 't () ) none) ((or () 't) matched))"), "matched");
-
-        // quoted expressions
-        assertTest("(cond ('t \"should print\") (() \"should not print\"))", evalString("(cond ('t \"should print\") (() \"should not print\"))"), "\"should print\"");
+        // print result
+        printf("%s\n", sexpToString(result));
     }
 }
 
 
 
-int main(){
-    // runTests(5);
-    // input loop, handle input from stdin
-    
-    // todo, if else for file input, stdin
-
-    char input[256];
-    printf("Type 'exit' to quit.\n");
-    while (1){
-        printf(">");
-        if (!fgets(input, sizeof(input), stdin)) break; // EOF
-        if (strcmp(input, "exit\n") == 0) break; // exit command
-        input[strcspn(input, "\n")] = 0; // remove newline
-
-        if (!globalEnv) {
-            globalEnv = malloc(sizeof(Env));
-            globalEnv->symbols = &nil;
-            globalEnv->values = &nil;
-            globalEnv->parent = NULL;
+int main(int argc, char* argv[]){
+    if (argc == 2) { // file input or test mode
+        if (strcmp(argv[1], "-test") == 0) {
+            runTests("test_results.txt");
         }
-
-        // parse
-        SExp* sexpInput = sexp(input);
-        // evaluate
-        SExp* result = eval(sexpInput, globalEnv);
-        // print result
-        printf("%s\n", sexpToString(result));
+        else {
+            readFile(argv[1]);
+        }
+    }
+    else {          // standard input
+        repl();
     }
     return 0;
 }
