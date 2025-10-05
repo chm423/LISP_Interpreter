@@ -52,24 +52,24 @@ The testing methodology for each sprint is as follows:
 - not: test with nil and symbol to verify proper inversion of boolean type
 
 ### Sprint 4: 
-- (submission sprints 1-3, no tests)
+- (submission of sprints 1-3, no tests)
 
 ### Sprint 5: Eval function
 - set: test setting variables to numbers, strings, lists, and expressions
 - lookup: test retrieving previously set variables and ensure undefined variables return themselves
-- arithmetic with variables: test (add x 3) after setting x to a number
-- nested expressions: test (add (mul 2 3) (sub 10 4)) for correct evaluation order
+- arithmetic with variables: test `(add x 3)` after setting x to a number
+- nested expressions: test `(add (mul 2 3) (sub 10 4))` for correct evaluation order
 - quoting: test setting variable to a quoted function to verify quoted s-expressions are not evaluated
 - cons and list operations: test setting to manually built lists to ensure car/cdr work after assignment
 ### Sprint 6: Short-circuiting and conditionals
-- and, or: test with combinations of t, (), etc to verify evaluation
+- and, or: test with combinations of t, (), and so on to verify evaluation
 - if: test both true and false branches with numbers, strings
 - cond: test multiple clauses, including fallback clause 't, empty clause, and short-circuited clauses
 ### Sprint 7: User defined functions
-- simple single-argument function: define, call with correct type, call with wrong type
-- multiple arguments: define two-argument function, call with correct number, too few, and too many
-- nested calls: function calling another user-defined function to verify local environment handling
-- recursive functions: define factorial to test correct recursive implementation
+- single-argument function: define, call with correct type, call with wrong type
+- multiple arguments: define two-argument function, call with correct number, too few, and too many arguments
+- nested calls: function calling another user-defined function to verify proper local environment handling
+- recursive functions: define factorial function to test correct recursive implementation
 - error handling: call undefined function, call with wrong argument type, call with wrong number of arguments
 ### Sprint 8: Lambda functions
 - lambda calling: verify a simple function returns desired value
@@ -77,17 +77,16 @@ The testing methodology for each sprint is as follows:
 - multiple arguments: testing lambda calling with more than one argument to ensure all are considered
 - nested calls: calling a lambda within a lambda to verify proper solving order
 - error handling: considering mismatching argument numbers and types
-
 ## Test Results
 The results for the above tests are shown in `test_results.txt` in the project folder, displayed exactly as the interpreter outputted them.
 
 These results were made from a helper function `assertTest()` which printed the input, computed the result, and checked if the given result matched the expected one. 
-Inputs shown in the results consist of inline S-Expressions declared within the assertTest function's argument
+Inputs shown in the results consist of inline S-Expressions declared within the assertTest function's argument.
 
 Passed tests display the result that was expected (which would match the given result), while failed tests provide the received result and what it expected instead.
 ## Documentation
 ### Things to consider when utilizing this interpreter:
-- in standard input, if no closing parentheses are provided for a statement, the interpreter will continue to add onto the previous statement until the statement is properly closed
+- in standard input, if no closing parentheses are provided for a statement, the interpreter will continue to add onto the previous statement until the statement is properly closed - allowing for multi-line s-expressions
 - in file input, if an s-expression is not properly closed, the interpreter will ignore it and all following s-expressions
 - when utilizing `cond`, the interpreter requires each branch to be a list of two s-expressions; for example:
 ```
@@ -100,15 +99,17 @@ Passed tests display the result that was expected (which would match the given r
 - conditional functions (such as `eq`, `lt`, `gt`) will return an error symbol if there is a type mismatch, meaning false positives could be returned in user-defined functions if incorrect input is supplied
 - you cannot utilize `define` to override pre-defined functions (they will be set, but cannot be retrieved)
 	- the same goes for atoms like numbers (e.g. `(set 11 x)` will always return 11)
-- 
+- a few functions, including `define`, assume correct structuring (or may pad missing arguments with nil), leading unexpected behavior to occur if functions are set up improperly
+- arithmetic functions (`add`, `sub`, etc.) have no shorthand function call (+, -, ...) but they can be defined by the user
 
 ### Some limitations of this program include:
-- no implementation of lists for the `eq()` function*
+- no implementation of list equality for the `eq()` function*
 - setting a symbol to a quoted s-expression will not evaluate the quoted s-expression on further calling of the symbol
 - arithmetic functions (`add`, `sub`, `mul`, etc.) and logic functions (`and`, `or`, `lt`, `gt`, etc.) will only consider the first two arguments*; everything following these two will be discarded
 	- if there is only one argument, the interpreter will assume the second is nil, returning a "not a number" error
 - dotted pairs not read in properly*, '.' read as symbol
 - `and`, `or` assume the user only inputs 2 s-expressions following the declaration, meaning any additional inputs won't be considered
 - higher order functions, such as `map` or `apply`, are not implemented in this interpreter*
+- incorrect implementation of lambda functions argument mismatch may return a different error symbol (see sprint 8 test results)
 
 \* instructor specified functionality not required for assignment

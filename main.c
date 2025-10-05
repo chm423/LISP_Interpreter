@@ -579,6 +579,7 @@ int listLength (SExp* list) {
     }
     return count;
 }
+// helper to reverse a list (for extendEnv)
 SExp* reverseList(SExp* list){
     SExp* result = &nil;
     while (list != &nil){
@@ -587,6 +588,7 @@ SExp* reverseList(SExp* list){
     }
     return result;
 }
+// environment extension function to add new symbol value pairs
 Env* extendEnv (SExp* params, SExp* args, Env* parent) { 
     Env* newEnv = malloc(sizeof(Env));
     newEnv->symbols = &nil;
@@ -614,7 +616,7 @@ SExp* set(SExp* symbol, SExp* value, Env* env) {
     env->values = cons(value, env->values);
     return value; // return stored value
 }
-
+// evaluate s-expression in given environment
 SExp* eval (SExp* sexp, Env* env) {
     if (nilp(sexp) == &truth) return &nil; // nil returns nil
 
@@ -1081,7 +1083,7 @@ void runTests(const char* fileName) {
     fprintf(file, "--- multiple arguments ---\n");
     assertTest(file, "((lambda (a b) (mul a b)) 3 4)", evalString("((lambda (a b) (mul a b)) 3 4)"), "12");
     assertTest(file, "((lambda (x y) (add x y)) 3)", evalString("((lambda (x y) (add x y)) 3)"), "Error: Argument count mismatch");
-    assertTest(file, "((lambda (x) (add x y)) 3)", evalString("((lambda (x) (add x y)) 3)"), "Error: Operand not a number"); // y is undefined
+    assertTest(file, "((lambda (x) (add x y)) 3)", evalString("((lambda (x) (add x y)) 3)"), "Error: Argument count mismatch"); // y is undefined
     assertTest(file, "((lambda (x) (div x 0)) 5)", evalString("((lambda (x) (div x 0)) 5)"), "Error: Divide by zero"); 
 
     fprintf(file, "--- nested lambda ---\n");

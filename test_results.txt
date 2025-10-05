@@ -166,7 +166,7 @@ PASSED: (inc 10) => 11
 --- multiple arguments ---
 PASSED: ((lambda (a b) (mul a b)) 3 4) => 12
 PASSED: ((lambda (x y) (add x y)) 3) => Error: Argument count mismatch
-PASSED: ((lambda (x) (add x y)) 3) => Error: Operand not a number
+FAILED: ((lambda (x) (add x y)) 3) => got Error: Operand not a number, expected Error: Argument count mismatch
 PASSED: ((lambda (x) (div x 0)) 5) => Error: Divide by zero
 --- nested lambda ---
 PASSED: ((lambda (f x) (f x)) (lambda (y) (mul y 2)) 5) => 10
